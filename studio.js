@@ -200,7 +200,9 @@
     const baseMs = state.baseDuration * 1000;
     const dotMs = baseMs * .15;
     const outlineTravelMs = baseMs * .38 / state.outlineSpeed;
-    const fillMs = baseMs * .35;
+    const fillMs = state.sample && window.RangoliDrawableDesigns?.[state.designId]
+      ? Math.max(baseMs*.35,libraryFills.length*52)
+      : baseMs * .35;
     const holdMs = baseMs * .12;
 
     const measures = strokes.map(s => {
@@ -227,7 +229,7 @@
     let clock=0;
     for(const m of measures){
       const travel=outlineTravelMs * m.weighted / totalWeight;
-      const dwell = m.s.kind==='petal' ? state.pauseMs : m.s.kind==='ring' ? state.pauseMs*.65 : m.s.kind==='geometric' && m.s.len>35 ? state.pauseMs*.52 : 0;
+      const dwell = m.s.kind==='petal' ? state.pauseMs : m.s.kind==='ring' ? state.pauseMs*.65 : m.s.kind==='geometric' && m.s.len>35 ? state.pauseMs*.52 : ['flame','bowl','footprint','frame','toe','shape','bead'].includes(m.s.kind) ? state.pauseMs*.7 : 0;
       const start=clock, drawEnd=start+travel, pauseEnd=drawEnd+dwell;
       naturalSchedule.push({...m,start,drawEnd,pauseEnd,travel,dwell});
       clock=pauseEnd;
