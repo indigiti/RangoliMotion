@@ -229,7 +229,7 @@
     let clock=0;
     for(const m of measures){
       const travel=outlineTravelMs * m.weighted / totalWeight;
-      const dwell = m.s.kind==='petal' ? state.pauseMs : m.s.kind==='ring' ? state.pauseMs*.65 : m.s.kind==='geometric' && m.s.len>35 ? state.pauseMs*.52 : ['flame','bowl','footprint','frame','toe','shape','bead'].includes(m.s.kind) ? state.pauseMs*.7 : 0;
+      const dwell = !state.sample ? 0 : m.s.kind==='petal' ? state.pauseMs : m.s.kind==='ring' ? state.pauseMs*.65 : m.s.kind==='geometric' && m.s.len>35 ? state.pauseMs*.52 : ['flame','bowl','footprint','frame','toe','shape','bead'].includes(m.s.kind) ? state.pauseMs*.7 : 0;
       const start=clock, drawEnd=start+travel, pauseEnd=drawEnd+dwell;
       naturalSchedule.push({...m,start,drawEnd,pauseEnd,travel,dwell});
       clock=pauseEnd;
@@ -726,7 +726,7 @@
         rawCtx.drawImage(image,x,y,w,h);
         state.rect={x,y,w,h};state.sample=false;state.designId='upload';state.image=image;state.name=file.name;
         state.detail=`${image.naturalWidth} × ${image.naturalHeight} · ${(file.size/1048576).toFixed(2)} MB`;
-        normalizeUpload();createImageEdges();generateImportedDots();updateDesignPicker();thumb();setElapsed(0,true);
+        normalizeUpload();createImageEdges();generateImportedDots();rebuildNaturalTiming();updateTimingLabels();updateDesignPicker();thumb();setElapsed(0,true);
         $('stageDisclaimer').textContent='Upload preview: dots are decorative, contours are pixel-derived, and colour sections are revealed clockwise. This is not an exact how-to guide.';
         notify('Artwork loaded — dots, contours and colour animation are ready.');
       }catch(err){console.error(err);notify('Unable to render this image. Try a smaller PNG or JPG.');}
