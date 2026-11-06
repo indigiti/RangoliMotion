@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  pull_request:
 
 permissions:
   contents: read
@@ -21,30 +22,46 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Verify entry files and links
+      - name: Check app and gallery files
         run: |
           set -euo pipefail
-          for file in index.html styles.css geometric-design.js studio.js; do
+          for file in index.html styles.css geometric-design.js studio.js gallery.js gallery-data.js gallery.css; do
             test -s "$file"
           done
           grep -q 'href="styles.css"' index.html
           grep -q 'src="geometric-design.js"' index.html
           grep -q 'src="studio.js"' index.html
+          test "$(find assets/designs -type f -name '*.webp' | wc -l | tr -d ' ')" -eq 31
 
-      - name: Check JavaScript syntax
-        run: |
-          node --check geometric-design.js
-          node --check studio.js
-
-      - name: Package public website
+      - name: Check JavaScript syntax and gallery manifest
         run: |
           set -euo pipefail
-          mkdir -p dist
-          cp index.html styles.css geometric-design.js studio.js dist/
+          for f in geometric-design.js studio.js gallery-data.js gallery.js; do node --check "$f"; done
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm');
+          const context={window:{}};
+          vm.runInNewContext(fs.readFileSync('gallery-data.js','utf8'),context);
+          const items=context.window.RangoliDesignLibraryData;
+          if(!Array.isArray(items)||items.length!==31)throw Error('Expected exactly 31 gallery entries');
+          for(const x of items){
+            if(!/^assets\/designs\/[a-z0-9-]+\.webp$/.test(x.src)||!fs.existsSync(x.src))throw Error('Missing gallery image: '+x.src);
+          }
+          console.log('Verified',items.length,'distinct gallery assets');
+          NODE
+
+      - name: Package public website
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          mkdir -p dist/assets
+          cp index.html styles.css geometric-design.js studio.js gallery.css gallery.js gallery-data.js dist/
+          cp -R assets/designs dist/assets/
           test -s dist/index.html
+          test "$(find dist/assets/designs -type f -name '*.webp' | wc -l | tr -d ' ')" -eq 31
           printf 'RangoliMotion commit %s\n' "$GITHUB_SHA" > dist/BUILD_INFO.txt
 
       - name: Publish DigiOps release artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: digiops-release

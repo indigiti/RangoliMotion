@@ -800,3 +800,11 @@
   window.RangoliPreviewDiagnostics=()=>({design:state.designId,geometricColors:state.geometricColors,mode:state.sample?'vector-sample':'uploaded-image',stage:stageFor(state.elapsed/(state.duration*1000)).id,duration:state.duration,baseDuration:state.baseDuration,outlineSpeed:state.outlineSpeed,realism:state.realism,pauseMs:state.pauseMs,outlineTimeMs:timings.outlineMs,strokeCount:strokes.length,fullScreen:document.fullscreenElement?.id==='previewColumn'||fullscreenFallback,playing:state.playing,loop:state.loop,recording:state.recording});
 })();
 
+
+/* RangoliMotion v6: dynamically mount the 31-item transparent design gallery. */
+(() => {
+  const sheet = document.createElement('link'); sheet.rel='stylesheet'; sheet.href='gallery.css'; document.head.appendChild(sheet);
+  for (const source of ['gallery-data.js','gallery.js']) {
+    const script = document.createElement('script'); script.src=source; script.async=false; document.body.appendChild(script);
+  }
+})();
