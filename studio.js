@@ -36,7 +36,7 @@
     clay: {a:'#3d2b29',b:'#704640',floor:'#382927',grid:'#e4b99b',dot:'#ffdfad',line:'#f5d6b4'},
     sand: {a:'#e8d9bd',b:'#f6e7d0',floor:'#decbad',grid:'#785f48',dot:'#97633e',line:'#875a3d'}
   };
-  const strokes = [], petals = [], dots = [], importedDots = [], geometricFills = [];
+  const strokes = [], petals = [], dots = [], importedDots = [], geometricFills = [], libraryFills = [];
   let toastTimer = null, lastStage = '';
   const clamp = (n, a=0, b=1) => Math.max(a, Math.min(b, n));
   const ease = (n) => (n = clamp(n), n*n*(3-2*n));
@@ -134,6 +134,61 @@
       geometricFills.push({path,center:conv(region.c),area:region.area});
     }
     // Dots in source are guides; timed strokes are image-derived and only illustrative.
+  }
+
+  // Genuine vector draws are authored geometries, never masked gallery bitmaps.
+  function buildLibraryVector(id){
+    const data=window.RangoliDrawableDesigns?.[id];
+    if(!data || data.mode!=='vector_draw')throw new Error('Missing vector template: '+id);
+    strokes.length=0;petals.length=0;dots.length=0;geometricFills.length=0;libraryFills.length=0;
+    const xy=p=>({x:p[0],y:p[1]});
+    for(const d of data.dots)dots.push({x:d.x,y:d.y,size:d.size||3.5});
+    for(const s of data.strokes)if(s.points.length>1)stroke(s.points.map(xy),s.color,s.width||3,false,s.kind||'detail');
+    for(const f of data.fills){
+      if(f.points.length<3)continue;
+      const points=f.points.map(xy),path=new Path2D();
+      path.moveTo(points[0].x,points[0].y);
+      for(let i=1;i<points.length;i++)path.lineTo(points[i].x,points[i].y);
+      path.closePath();
+      const anchor=f.anchor?xy(f.anchor):{
+        x:points.reduce((n,p)=>n+p.x,0)/points.length,
+        y:points.reduce((n,p)=>n+p.y,0)/points.length
+      };
+      const radius=Math.max(18,...points.map(p=>Math.hypot(p.x-anchor.x,p.y-anchor.y)))*1.1;
+      libraryFills.push({path,anchor,radius,color:f.color});
+    }
+    if(!strokes.length||!libraryFills.length)throw new Error('Incomplete vector: '+id);
+  }
+  function libraryFillFrame(target,progress){
+    const n=libraryFills.length;
+    for(let i=0;i<n;i++){
+      const region=libraryFills[i],part=clamp(progress*n-i);
+      if(!part)continue;
+      target.save();target.clip(region.path);
+      target.globalAlpha=.96;target.fillStyle=region.color;
+      target.beginPath();target.arc(region.anchor.x,region.anchor.y,region.radius*ease(part),0,TAU);target.fill();
+      if(state.sparkle&&part>.3){
+        target.globalAlpha=.14*part;target.fillStyle='#fff8dd';
+        for(let k=0;k<5;k++)target.fillRect(region.anchor.x+(k-2)*9,region.anchor.y+((k+i)%4-2)*8,1.4,1.4);
+      }
+      target.restore();
+    }
+  }
+  function libraryVectorFrame(target,p,time){
+    const d=ease(rel(p,stops[0],stops[1])),f=rel(p,stops[2],stops[3]);
+    target.save();target.globalAlpha=p<stops[2]?1:lerp(1,.12,f);
+    drawDots(target,dots,d);target.restore();
+    if(p>=stops[2]){
+      libraryFillFrame(target,f);
+      target.drawImage(vectorOutlineCache,0,0);
+      if(f>0&&f<1){
+        const idx=Math.min(libraryFills.length-1,Math.floor(f*libraryFills.length));
+        brushGlow(target,libraryFills[idx].anchor,.65);
+      }
+    }else if(p>=stops[1]){
+      drawPowderHead(target,naturalOutlines(target,time-timings.dotMs),time);
+    }
+    drawFlourish(target,f,time);
   }
   let totalStrokes=strokes.reduce((s,v)=>s+v.len,0);
 
@@ -536,14 +591,16 @@
   function stageFor(p) {
     if(p<stops[1])return {id:'dots',label:'Placing dots',badge:'01 / PLACING DOTS',number:0};
     if(p<stops[2])return {id:'lines',label:'Drawing the outline',badge:'02 / DRAWING OUTLINES',number:1};
-    if(p<stops[3]){const plain=state.sample&&state.designId==='geometric'&&!state.geometricColors;return plain?{id:'color',label:'Polishing white linework',badge:'03 / LINEWORK POLISH',number:2}:{id:'color',label:'Colouring the petals',badge:'03 / COLOUR BLOOM',number:2};}
+    if(p<stops[3]){const plain=state.sample&&state.designId==='geometric'&&!state.geometricColors;return plain?{id:'color',label:'Polishing white linework',badge:'03 / LINEWORK POLISH',number:2}:{id:'color',label:'Filling colour regions',badge:'03 / COLOUR FILL',number:2};}
     return {id:'final',label:'Final rangoli',badge:'04 / FINAL FLOURISH',number:3};
   }
   function renderAt(elapsedMs,updateUI=true) {
     const p=clamp(elapsedMs/timings.totalMs);
     ctx.drawImage(backdropCache,0,0);
     if(state.sample && state.designId==='geometric')geometricFrame(ctx,p,elapsedMs);
-    else if(state.sample)vectorFrame(ctx,p,elapsedMs);else uploadedFrame(ctx,p,elapsedMs);
+    else if(state.sample && state.designId!=='lotus')libraryVectorFrame(ctx,p,elapsedMs);
+    else if(state.sample)vectorFrame(ctx,p,elapsedMs);
+    else uploadedFrame(ctx,p,elapsedMs);
     if(updateUI){
       const stage=stageFor(p);
       $('timelineRange').value=Math.round(p*1000);
@@ -599,7 +656,8 @@
       const temp=small.getContext('2d');
       temp.fillStyle='#192529';temp.fillRect(0,0,SIZE,SIZE);
       if(state.designId==='geometric'){geometricFillsFrame(temp,1);vectorOutlines(temp,1);}
-      else {vectorFills(temp,1);vectorOutlines(temp,1);}
+      else if(state.designId==='lotus'){vectorFills(temp,1);vectorOutlines(temp,1);}
+      else {libraryFillFrame(temp,1);vectorOutlines(temp,1);}
       thumbCtx.drawImage(small,0,0,108,108);
     }else thumbCtx.drawImage(source,0,0,108,108);
     $('artworkName').textContent=state.name;
@@ -617,8 +675,8 @@
     $('geometricColorToggle').checked=state.geometricColors;
     const plain=state.sample&&state.designId==='geometric'&&!state.geometricColors;
     const third=document.querySelector('.phase-item[data-stage="color"]');
-    third.querySelector('strong').textContent=plain?'Linework polish':'Colour bloom';
-    third.querySelector('small').textContent=plain?'The original white motif is refined':'Petals fill one after another';
+    third.querySelector('strong').textContent=plain?'Linework polish':'Colour fill';
+    third.querySelector('small').textContent=plain?'The original white motif is refined':'Regions fill one by one';
   }
   function selectDesign(id){
     if(state.recording)return;
@@ -627,7 +685,12 @@
     $('themeSelect').value=state.theme;
     state.rect={x:75,y:75,w:750,h:750};
     srcCtx.clearRect(0,0,SIZE,SIZE);
-    if(id==='geometric'){
+    if(window.RangoliDrawableDesigns?.[id]){
+      buildLibraryVector(id);
+      const template=window.RangoliDrawableDesigns[id];
+      state.name=template.title;state.detail='Authored vector drawing · '+template.category;
+      $('stageDisclaimer').textContent='Authored dot, ordered outline and region-fill animation. Stylized interpretation of the reference, not an exact tracing or verified practical lesson.';
+    }else if(id==='geometric'){
       buildGeometric();
       state.name='Geometric lotus';state.detail='Your image · Traced vector outlines';
       $('stageDisclaimer').textContent='Geometric lotus: the white lines were traced from your image, excluding its labels and watermark. The animation stroke order is inferred, not an exact real-world drawing tutorial. Colour accents are optional.';
@@ -640,6 +703,10 @@
     rebuildNaturalTiming();updateTimingLabels();
     buildVisualCaches();updateDesignPicker();thumb();setElapsed(0,true);
   }
+  window.RangoliStudioSelectVector = id => {
+    if(!window.RangoliDrawableDesigns?.[id] || state.recording)return false;
+    selectDesign(id);return true;
+  };
   function sample(){selectDesign('lotus');}
   function loadFile(file){
     if(!file || state.recording)return;
@@ -797,5 +864,5 @@
   }
   rebuildNaturalTiming();controls();buildVisualCaches();sample();requestAnimationFrame(tick);
   // Expose read-only test diagnostics, not app controls.
-  window.RangoliPreviewDiagnostics=()=>({design:state.designId,geometricColors:state.geometricColors,mode:state.sample?'vector-sample':'uploaded-image',stage:stageFor(state.elapsed/(state.duration*1000)).id,duration:state.duration,baseDuration:state.baseDuration,outlineSpeed:state.outlineSpeed,realism:state.realism,pauseMs:state.pauseMs,outlineTimeMs:timings.outlineMs,strokeCount:strokes.length,fullScreen:document.fullscreenElement?.id==='previewColumn'||fullscreenFallback,playing:state.playing,loop:state.loop,recording:state.recording});
+  window.RangoliPreviewDiagnostics=()=>({design:state.designId,geometricColors:state.geometricColors,mode:state.sample?(window.RangoliDrawableDesigns?.[state.designId]?'vector_draw':'vector-sample'):'image_preview',fillCount:libraryFills.length,stage:stageFor(state.elapsed/(state.duration*1000)).id,duration:state.duration,baseDuration:state.baseDuration,outlineSpeed:state.outlineSpeed,realism:state.realism,pauseMs:state.pauseMs,outlineTimeMs:timings.outlineMs,strokeCount:strokes.length,fullScreen:document.fullscreenElement?.id==='previewColumn'||fullscreenFallback,playing:state.playing,loop:state.loop,recording:state.recording});
 })();
