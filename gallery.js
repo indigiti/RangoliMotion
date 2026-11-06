@@ -11,6 +11,7 @@
 
   const esc = s => String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const types = ['All','Diya','Floral','Peacock','Festival','Symbols'];
+  let modeFilter='all';
   let filter = 'All';
   let search = '';
   let selected = null;
@@ -19,34 +20,41 @@
   const library = document.createElement('section');
   library.id = 'rangoliDesignLibrary';
   library.className = 'rm-library';
-  library.setAttribute('aria-label','Browse 31 individual rangoli designs');
+  library.setAttribute('aria-label','Browse 31 rangoli designs in vector drawing or image preview mode');
   library.innerHTML = `
     <div class="rm-lib-heading">
       <div><span class="rm-lib-kicker">CURATED MOTION COLLECTION / 31 DESIGNS</span>
         <h2>Find your next rangoli.</h2>
-        <p>Choose a transparent design, then watch it appear on the Canvas. The two original vector templates remain available above.</p>
+        <p>Choose a design. Draw Mode follows authored paths and fills; Preview Mode reveals the original image. The original two studio templates remain available above.</p>
       </div><span class="rm-lib-count">31 designs</span>
     </div>
     <div class="rm-lib-tools">
       <input id="rmLibrarySearch" class="rm-lib-search" aria-label="Search rangoli designs" type="search" placeholder="Search diya, lotus, peacock…" autocomplete="off">
-      <div class="rm-lib-filters" role="group" aria-label="Filter rangoli categories">
+      <div class="rm-lib-modes" role="group" aria-label="Filter by animation capability">
+          <button type="button" class="rm-lib-mode is-active" data-mode-filter="all" aria-pressed="true">All 31</button>
+          <button type="button" class="rm-lib-mode" data-mode-filter="vector_draw" aria-pressed="false">Draw Mode · 6</button>
+          <button type="button" class="rm-lib-mode" data-mode-filter="image_preview" aria-pressed="false">Preview Mode · 25</button>
+        </div>
+      </div>
+      <div class="rm-lib-tools rm-lib-category-tools"><div class="rm-lib-filters" role="group" aria-label="Filter rangoli categories">
         ${types.map(type=>`<button class="rm-lib-filter ${type==='All'?'is-active':''}" type="button" data-filter="${type}" aria-pressed="${type==='All'}">${type}</button>`).join('')}
       </div>
     </div>
     <div id="rmGalleryGrid" class="rm-lib-grid"></div>
     <div id="rmGalleryStatus" class="rm-lib-gallery-status" role="status" aria-live="polite">Choose a design to animate it above.</div>
-    <p class="rm-lib-disclaimer">Images are transparent, AI-cleaned artistic recreations derived from the supplied collages. Designs with cultural text may need proofreading. These use the studio’s <strong>image preview</strong> animation, not authenticated dot-by-dot drawing instructions. Verify artwork rights before public redistribution.</p>`;
+    <p class="rm-lib-disclaimer">Images are transparent, AI-cleaned artistic recreations derived from the supplied collages. Designs with cultural text may need proofreading. Six designs use authored vector paths with ordered strokes and color regions. The other 25 remain <strong>image previews</strong>. Authored drawings are stylized interpretations, not verified step-by-step how-to instructions. Verify artwork rights before public redistribution.</p>`;
   workspace.insertAdjacentElement('afterend', library);
 
   const grid = library.querySelector('#rmGalleryGrid');
   const status = library.querySelector('#rmGalleryStatus');
   const render = () => {
-    const filtered = items.filter(item => (filter==='All'||item.category.toLowerCase()===filter.toLowerCase()) &&
+    const filtered = items.filter(item => (modeFilter==='all'||item.mode===modeFilter) && (filter==='All'||item.category.toLowerCase()===filter.toLowerCase()) &&
       (!search || `${item.title} ${item.collection} ${item.category}`.toLowerCase().includes(search)));
     library.querySelector('.rm-lib-count').textContent = `${filtered.length} of ${items.length} designs`;
     grid.innerHTML = filtered.length ? filtered.map(item=>`
-      <button type="button" class="rm-lib-card ${item.id===selected?'is-selected':''}" data-rangoli="${esc(item.id)}" aria-pressed="${item.id===selected}" title="Preview ${esc(item.title)}">
+      <button type="button" class="rm-lib-card ${item.id===selected?'is-selected':''}" data-rangoli="${esc(item.id)}" aria-pressed="${item.id===selected}" title="${item.mode==='vector_draw'?'Draw':'Preview'} ${esc(item.title)}">
         <span class="rm-lib-card-image"><img src="${esc(item.src)}" loading="lazy" decoding="async" alt="${esc(item.title)} rangoli with transparent background"></span>
+        <span class="rm-lib-mode-badge ${item.mode==='vector_draw'?'is-vector':'is-preview'}">${item.mode==='vector_draw'?'✎ Draw Mode':'◌ Image Preview'}</span>
         <span class="rm-lib-card-title">${esc(item.title)}</span>
         <span class="rm-lib-card-sub"><span>${esc(item.collection==='Festival Rangoli'?'Festival':'Decorative')}</span><span>${esc(item.category)}</span></span>
       </button>`).join('') : '<p class="rm-lib-empty">No designs match this filter. Try another category or search term.</p>';
@@ -54,6 +62,14 @@
 
   async function select(item) {
     const token = ++selectionToken;
+    if(item.mode==='vector_draw'){
+      const ok=window.RangoliStudioSelectVector?.(item.modelId||item.id);
+      if(!ok){status.textContent='Drawing template unavailable. Check drawable-designs.js in the deployed release.';return;}
+      selected=item.id;render();
+      status.textContent=item.title+' selected: dots, ordered real vector strokes, and one-by-one color regions. This is a stylized interpretation.';
+      document.getElementById('previewColumn')?.scrollIntoView({behavior:'smooth',block:'start'});
+      return;
+    }
     const button = library.querySelector(`[data-rangoli="${item.id}"]`);
     if (button) button.disabled=true;
     status.textContent = `Loading ${item.title}…`;
@@ -70,7 +86,7 @@
       upload.dispatchEvent(new Event('change',{bubbles:true}));
       selected = item.id;
       render();
-      status.textContent = `${item.title} loaded. Use the playback controls to watch the approximate drawing and color-fill reveal.`;
+      status.textContent = `${item.title} loaded in Image Preview Mode. This is an artistic image reveal, not a traced drawing.`;
       document.getElementById('previewColumn')?.scrollIntoView({behavior:'smooth',block:'start'});
     } catch (err) {
       console.error('Rangoli gallery image failed to load',err);
@@ -96,6 +112,15 @@
     library.querySelectorAll('.rm-lib-filter').forEach(b=>{const active=b===choice;b.classList.toggle('is-active',active);b.setAttribute('aria-pressed',String(active))});
     render();
   });
+  library.querySelector('.rm-lib-modes').addEventListener('click',event=>{
+    const choice=event.target.closest('button[data-mode-filter]');
+    if(!choice)return;
+    modeFilter=choice.dataset.modeFilter;
+    library.querySelectorAll('.rm-lib-mode').forEach(b=>{
+      const active=b===choice;b.classList.toggle('is-active',active);b.setAttribute('aria-pressed',String(active));
+    });
+    render();
+  });
   for(const id of ['selectLotus','selectGeometric','restoreSample']){
     document.getElementById(id)?.addEventListener('click',()=>{selectionToken++;selected=null;render();});
   }
@@ -106,5 +131,5 @@
   browse.textContent='✦  Browse all 31 rangoli designs';
   document.querySelector('.asset-section .design-picker')?.insertAdjacentElement('afterend',browse);
   render();
-  window.RangoliGalleryDiagnostics = () => ({count:items.length,filtered: grid.querySelectorAll('[data-rangoli]').length,selected,filter});
+  window.RangoliGalleryDiagnostics = () => ({count:items.length,vector:items.filter(x=>x.mode==='vector_draw').length,preview:items.filter(x=>x.mode==='image_preview').length,filtered:grid.querySelectorAll('[data-rangoli]').length,selected,filter,modeFilter});
 })();
