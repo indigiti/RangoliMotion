@@ -25,18 +25,19 @@ jobs:
       - name: Check app and gallery files
         run: |
           set -euo pipefail
-          for file in index.html styles.css geometric-design.js studio.js gallery.js gallery-data.js gallery.css; do
+          for file in index.html styles.css geometric-design.js studio.js drawable-designs.js gallery.js gallery-data.js gallery.css; do
             test -s "$file"
           done
           grep -q 'href="styles.css"' index.html
           grep -q 'src="geometric-design.js"' index.html
           grep -q 'src="studio.js"' index.html
+          grep -q 'src="drawable-designs.js"' index.html
           test "$(find assets/designs -type f -name '*.webp' | wc -l | tr -d ' ')" -eq 31
 
       - name: Check JavaScript syntax and gallery manifest
         run: |
           set -euo pipefail
-          for f in geometric-design.js studio.js gallery-data.js gallery.js; do node --check "$f"; done
+          for f in geometric-design.js studio.js drawable-designs.js gallery-data.js gallery.js; do node --check "$f"; done
           node - <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const context={window:{}};
@@ -46,7 +47,36 @@ jobs:
           for(const x of items){
             if(!/^assets\/designs\/[a-z0-9-]+\.webp$/.test(x.src)||!fs.existsSync(x.src))throw Error('Missing gallery image: '+x.src);
           }
-          console.log('Verified',items.length,'distinct gallery assets');
+          const drawable=items.filter(x=>x.mode==='vector_draw'),previews=items.filter(x=>x.mode==='image_preview');
+          if(drawable.length!==6||previews.length!==25)throw Error('Expected 6 vector designs and 25 image previews');
+          console.log('Verified',drawable.length,'drawable and',previews.length,'preview designs');
+          NODE
+
+      - name: Validate drawable vector geometry and gallery integration
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),vm=require('vm'),assert=require('assert');
+          const context={window:{}};
+          vm.runInNewContext(fs.readFileSync('drawable-designs.js','utf8'),context);
+          vm.runInNewContext(fs.readFileSync('gallery-data.js','utf8'),context);
+          const models=context.window.RangoliDrawableDesigns;
+          const items=context.window.RangoliDesignLibraryData;
+          const expected=['a-01','a-06','a-07','a-09','a-14','a-16'];
+          assert.deepStrictEqual(Object.keys(models).sort(),expected);
+          for(const id of expected){
+            const m=models[id],item=items.find(x=>x.id===id);
+            assert(item&&item.mode==='vector_draw'&&item.modelId===id,id+' manifest mismatch');
+            assert(m.dots.length>0&&m.strokes.length>0&&m.fills.length>0,id+' missing geometry');
+            assert(m.strokes.every(s=>s.points.length>1&&s.points.every(p=>p.every(Number.isFinite))),id+' bad stroke');
+            assert(m.fills.every(f=>f.points.length>=3&&f.points.every(p=>p.every(Number.isFinite))),id+' bad region');
+            const coords=m.strokes.flatMap(s=>s.points).flat();
+            assert(coords.every(x=>x>=0&&x<=900),id+' coordinates beyond canvas');
+          }
+          const studio=fs.readFileSync('studio.js','utf8'),gallery=fs.readFileSync('gallery.js','utf8');
+          assert(studio.includes('window.RangoliStudioSelectVector'));
+          assert(studio.includes('libraryVectorFrame('));
+          assert(gallery.includes('window.RangoliStudioSelectVector'));
+          console.log('Validated 6 geometry models, 25 image previews, and vector routing');
           NODE
 
       - name: Package public website
@@ -54,7 +84,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist/assets
-          cp index.html styles.css geometric-design.js studio.js gallery.css gallery.js gallery-data.js dist/
+          cp index.html styles.css geometric-design.js drawable-designs.js studio.js gallery.css gallery.js gallery-data.js dist/
           cp -R assets/designs dist/assets/
           test -s dist/index.html
           test "$(find dist/assets/designs -type f -name '*.webp' | wc -l | tr -d ' ')" -eq 31
