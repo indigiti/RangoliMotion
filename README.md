@@ -43,3 +43,13 @@ No license is granted for redistribution of original third-party reference image
 ## Status
 
 Preview Mode v5. Tutor Mode is not implemented. 
+
+## 31-design gallery (v6)
+
+In addition to two vector-drawn sample designs, the site includes 31 **individual transparent WebP** assets with search and category filters. Choose a thumbnail to load it into the Canvas preview. The original vector templates remain available. Gallery artwork uses an artistic raster reveal, not a verified teaching sequence.
+
+The DigiOps GitHub Actions workflow validates all 31 image paths and publishes a complete `digiops-release` artifact, including `assets/designs/`.
+
+For local testing, run an HTTP server such as `python3 -m http.server 8080`; browsers may block `fetch` requests to gallery assets under `file://`.
+
+See [Design Library documentation](docs/DESIGN_LIBRARY.md) for rights, accuracy, and deployment notes.
