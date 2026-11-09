@@ -42,7 +42,7 @@ jobs:
       - name: Check JavaScript syntax and gallery manifest
         run: |
           set -euo pipefail
-          for f in drawing-contract.js image-processor.js geometric-design.js studio.js drawable-designs.js gallery-data.js gallery.js tests/drawing-contract.test.js; do node --check "$f"; done
+          for f in drawing-contract.js image-processor.js geometric-design.js studio.js drawable-designs.js gallery-data.js gallery.js tests/drawing-contract.test.js tests/runtime-smoke.test.js; do node --check "$f"; done
           node - <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const context={window:{}};
@@ -85,7 +85,9 @@ jobs:
           NODE
 
       - name: Enforce mandatory drawing stages and imported image tracing
-        run: node tests/drawing-contract.test.js
+        run: |
+          node tests/drawing-contract.test.js
+          node tests/runtime-smoke.test.js
 
       - name: Package public website
         if: github.event_name != 'pull_request'
