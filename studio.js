@@ -159,14 +159,37 @@
     }
     if(!strokes.length||!libraryFills.length)throw new Error('Incomplete vector: '+id);
   }
+  function buildProcessedImage(model){
+    window.RangoliDrawingRules.validateModel(model,{derived:true});
+    strokes.length=0;petals.length=0;dots.length=0;libraryFills.length=0;geometricFills.length=0;
+    for(const d of model.dots)dots.push({x:d.x,y:d.y,size:d.size||3.6});
+    for(const entry of model.strokes){
+      stroke(entry.points.map(p=>({x:p[0],y:p[1]})),entry.color||'#f7e9d2',entry.width||2.8,false,'auto_trace');
+    }
+    for(const region of model.fills){
+      const mask=new Path2D();
+      for(const rect of region.runs)mask.rect(rect[0],rect[1],rect[2]+.18,rect[3]+.18);
+      libraryFills.push({path:mask,anchor:{x:region.anchor[0],y:region.anchor[1]},
+        radius:region.radius,color:region.color,imageSource:true});
+    }
+    state.processedModel=model;
+    totalStrokes=strokes.reduce((n,v)=>n+v.len,0);
+    rebuildNaturalTiming();updateTimingLabels();buildVisualCaches();
+  }
   function libraryFillFrame(target,progress){
     const n=libraryFills.length;
     for(let i=0;i<n;i++){
       const region=libraryFills[i],part=clamp(progress*n-i);
       if(!part)continue;
       target.save();target.clip(region.path);
-      target.globalAlpha=.96;target.fillStyle=region.color;
-      target.beginPath();target.arc(region.anchor.x,region.anchor.y,region.radius*ease(part),0,TAU);target.fill();
+      if(region.imageSource){
+        // Reveal only this extracted colour component. Never wipe the entire bitmap.
+        target.beginPath();target.arc(region.anchor.x,region.anchor.y,region.radius*ease(part),0,TAU);target.clip();
+        target.globalAlpha=1;target.drawImage(source,0,0);
+      }else{
+        target.globalAlpha=.96;target.fillStyle=region.color;
+        target.beginPath();target.arc(region.anchor.x,region.anchor.y,region.radius*ease(part),0,TAU);target.fill();
+      }
       if(state.sparkle&&part>.3){
         target.globalAlpha=.14*part;target.fillStyle='#fff8dd';
         for(let k=0;k<5;k++)target.fillRect(region.anchor.x+(k-2)*9,region.anchor.y+((k+i)%4-2)*8,1.4,1.4);
@@ -175,20 +198,20 @@
     }
   }
   function libraryVectorFrame(target,p,time){
-    const d=ease(rel(p,stops[0],stops[1])),f=rel(p,stops[2],stops[3]);
+    const d=ease(rel(p,stops[0],stops[1])),f=rel(p,stops[3],stops[4]);
     target.save();target.globalAlpha=p<stops[2]?1:lerp(1,.12,f);
     drawDots(target,dots,d);target.restore();
     if(p>=stops[2]){
       libraryFillFrame(target,f);
       target.drawImage(vectorOutlineCache,0,0);
-      if(f>0&&f<1){
+      if(p>=stops[3]&&p<stops[4]&&f>0){
         const idx=Math.min(libraryFills.length-1,Math.floor(f*libraryFills.length));
         brushGlow(target,libraryFills[idx].anchor,.65);
       }
     }else if(p>=stops[1]){
       drawPowderHead(target,naturalOutlines(target,time-timings.dotMs),time);
     }
-    drawFlourish(target,f,time);
+    drawFlourish(target,rel(p,stops[4],stops[5]),time);
   }
   let totalStrokes=strokes.reduce((s,v)=>s+v.len,0);
 
