@@ -25,7 +25,7 @@
     <div class="rm-lib-heading">
       <div><span class="rm-lib-kicker">CURATED MOTION COLLECTION / 31 DESIGNS</span>
         <h2>Find your next rangoli.</h2>
-        <p>Choose a design. Draw Mode follows authored paths and fills; Preview Mode reveals the original image. The original two studio templates remain available above.</p>
+        <p>Choose a design. Authored templates draw known paths; image previews are automatically traced into estimated guide dots, contours and colour regions. Both use the five mandatory stages.</p>
       </div><span class="rm-lib-count">31 designs</span>
     </div>
     <div class="rm-lib-tools">
@@ -33,7 +33,7 @@
       <div class="rm-lib-modes" role="group" aria-label="Filter by animation capability">
           <button type="button" class="rm-lib-mode is-active" data-mode-filter="all" aria-pressed="true">All 31</button>
           <button type="button" class="rm-lib-mode" data-mode-filter="vector_draw" aria-pressed="false">Draw Mode · 6</button>
-          <button type="button" class="rm-lib-mode" data-mode-filter="image_preview" aria-pressed="false">Preview Mode · 25</button>
+          <button type="button" class="rm-lib-mode" data-mode-filter="image_preview" aria-pressed="false">Auto-Trace · 25</button>
         </div>
       </div>
       <div class="rm-lib-tools rm-lib-category-tools"><div class="rm-lib-filters" role="group" aria-label="Filter rangoli categories">
@@ -54,7 +54,7 @@
     grid.innerHTML = filtered.length ? filtered.map(item=>`
       <button type="button" class="rm-lib-card ${item.id===selected?'is-selected':''}" data-rangoli="${esc(item.id)}" aria-pressed="${item.id===selected}" title="${item.mode==='vector_draw'?'Draw':'Preview'} ${esc(item.title)}">
         <span class="rm-lib-card-image"><img src="${esc(item.src)}" loading="lazy" decoding="async" alt="${esc(item.title)} rangoli with transparent background"></span>
-        <span class="rm-lib-mode-badge ${item.mode==='vector_draw'?'is-vector':'is-preview'}">${item.mode==='vector_draw'?'✎ Draw Mode':'◌ Image Preview'}</span>
+        <span class="rm-lib-mode-badge ${item.mode==='vector_draw'?'is-vector':'is-preview'}">${item.mode==='vector_draw'?'✎ Draw Mode':'◌ Auto-Trace Preview'}</span>
         <span class="rm-lib-card-title">${esc(item.title)}</span>
         <span class="rm-lib-card-sub"><span>${esc(item.collection==='Festival Rangoli'?'Festival':'Decorative')}</span><span>${esc(item.category)}</span></span>
       </button>`).join('') : '<p class="rm-lib-empty">No designs match this filter. Try another category or search term.</p>';
@@ -86,7 +86,7 @@
       upload.dispatchEvent(new Event('change',{bubbles:true}));
       selected = item.id;
       render();
-      status.textContent = `${item.title} loaded in Image Preview Mode. This is an artistic image reveal, not a traced drawing.`;
+      status.textContent = `${item.title}: processing its image into estimated strokes and colour regions. This is not a verified tutorial.`;
       document.getElementById('previewColumn')?.scrollIntoView({behavior:'smooth',block:'start'});
     } catch (err) {
       console.error('Rangoli gallery image failed to load',err);
@@ -125,6 +125,16 @@
     document.getElementById(id)?.addEventListener('click',()=>{selectionToken++;selected=null;render();});
   }
   upload.addEventListener('click',()=>{selectionToken++;selected=null;render();});
+  document.addEventListener('rangoli:processed',event=>{
+    const detail=event.detail;
+    if(!selected || !detail)return;
+    if(detail.status==='traced'){
+      status.textContent=`Auto-traced image: ${detail.stats.tracedPaths} contours and ${detail.stats.regionCount} colour regions. All five stages are mandatory. Paths are estimated, not verified lessons.`;
+    }else if(detail.status==='failed'){
+      status.textContent='Could not derive reliable drawing paths. This image remains preview-only; choose a clearer image for dot-to-draw animation.';
+      selected=null;render();
+    }
+  });
   const browse=document.createElement('a');
   browse.href='#rangoliDesignLibrary';
   browse.className='rm-lib-jump';
