@@ -498,14 +498,14 @@
   }
 
   function geometricFillsFrame(target,progress){
-    if(!state.geometricColors || progress<=0)return;
-    const hues=['#ce8d92','#e9ba80','#72c5ac','#9a9bd5','#e7b2c7','#e9cf87','#85b8c5','#cda9dd'];
+    if(progress<=0)return;
+    const hues=state.geometricColors?['#ce8d92','#e9ba80','#72c5ac','#9a9bd5','#e7b2c7','#e9cf87','#85b8c5','#cda9dd']:['#fffaf3'];
     const count=geometricFills.length;
     for(let i=0;i<count;i++){
       const region=geometricFills[i],t=clamp(progress*count-i);
       if(!t)continue;
       target.save();target.clip(region.path);
-      target.globalAlpha=.53*ease(t);
+      target.globalAlpha=(state.geometricColors ? 0.53 : 0.09)*ease(t);
       const x=region.center.x,y=region.center.y;
       const r=Math.sqrt(region.area)*2.17*1.9;
       const g=target.createRadialGradient(x,y,0,x,y,r);
@@ -565,7 +565,11 @@
     if(id==='dots')return {id,label:'Placing guide dots',badge:'01 / PLACE DOTS',number:0};
     if(id==='outline')return {id,label:'Drawing outline, stroke by stroke',badge:'02 / DRAW OUTLINE',number:1};
     if(id==='outline_complete')return {id,label:'Outline complete · before colour',badge:'03 / OUTLINE COMPLETE',number:2};
-    if(id==='fill')return {id,label:'Filling each colour region',badge:'04 / FILL COLOURS',number:3};
+    if(id==='fill'){
+      const mono=state.sample&&state.designId==='geometric'&&!state.geometricColors;
+      return mono?{id,label:'Finishing monochrome powder regions',badge:'04 / WHITE POWDER FILL',number:3}
+        :{id,label:'Filling each colour region',badge:'04 / FILL COLOURS',number:3};
+    }
     return {id,label:'Completed rangoli',badge:'05 / FINAL DETAIL',number:4};
   }
   function renderAt(elapsedMs,updateUI=true) {
