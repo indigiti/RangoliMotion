@@ -3,7 +3,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const read=p=>fs.readFileSync(p,'utf8');
-const win={};for(const f of ['drawing-contract.js','image-processor.js','drawable-designs.js'])
+const win={};for(const f of ['drawing-contract.js','powder-trace.js','image-processor.js','drawable-designs.js'])
   vm.runInNewContext(read(f),{window:win},{filename:f});
 const els=new Map();function el(id){
   if(!els.has(id)){
@@ -22,9 +22,11 @@ let activePixels=makePixels(true);
 function makePixels(visible){
   const n=900,data=new Uint8ClampedArray(n*n*4);
   if(visible)for(let y=240;y<660;y++)for(let x=240;x<660;x++){
-    if((x-450)**2+(y-445)**2>155**2)continue;
+    const radius=Math.hypot(x-450,y-445);
+    if(radius>157)continue;
     const i=(y*n+x)*4;
-    data[i]=x<450?235:40;data[i+1]=x<450?55:175;data[i+2]=x<450?105:75;data[i+3]=255;
+    const border=Math.abs(radius-154)<3;
+    data[i]=border?248:x<450?235:40;data[i+1]=border?242:x<450?55:175;data[i+2]=border?228:x<450?105:75;data[i+3]=255;
   }
   return {width:n,height:n,data};
 }
@@ -69,6 +71,7 @@ function upload(){
 upload();
 assert.equal(diag().mode,'image_auto_trace','Uploads must use traced paths, not image wipes');
 assert.equal(diag().verification,'automatic_unreviewed');
+assert(diag().strokeCount>=3,'Expected detailed traced outlines');
 assert(diag().fillCount>0&&diag().strokeCount>0);
 assert.equal(events.at(-1).detail.status,'traced');
 const stages=[];
