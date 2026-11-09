@@ -163,7 +163,8 @@
           prev=xs[i];
         }
       }
-      regions.push({points:main,runs,
+      const outlineIndex=strokes.length; // this region's mandatory primary contour
+      regions.push({points:main,runs,outlineIndex,
         color:'rgb('+region.color.join(',')+')',
         powderFill:true,
         anchor:[(region.cx+.5)*scale,(region.cy+.5)*scale],
