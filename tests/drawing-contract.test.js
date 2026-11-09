@@ -45,6 +45,9 @@ assert.equal(bhaubeej.finalLabel.text,'६. भाऊबीज');
 assert.equal(bhaubeej.strokes.filter(x=>x.kind==='footprint').length,2);
 assert.equal(bhaubeej.fills.filter(x=>x.kind==='toe').length,10);
 assert.equal(bhaubeej.fills.filter(x=>x.kind==='border-bead').length,78);
+assert(bhaubeej.dots.length>=78);
+assert(bhaubeej.dots.slice(0,78).every(d=>Math.abs(Math.hypot(d.x-450,d.y-400)-320)<.1),
+  'Bhaubeej first 78 guide dots must be placed at the actual circular bead centers');
 assert(!bhaubeej.strokes.some(x=>['auto_trace','powder_line'].includes(x.kind)));
 assert(bhaubeej.strokes.every(s=>s.points.every(p=>p.every(v=>Number.isFinite(v)&&v>=0&&v<=900))));
 
