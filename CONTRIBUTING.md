@@ -2,7 +2,7 @@
 
 Start with [the mandatory drawing rules](docs/RANGOLI_DRAWING_RULES.md) and [agent instructions](AGENTS.md).
 
-Before submitting a change, run `node tests/drawing-contract.test.js` and check the browser sequence:
+Before submitting a change, run `node tests/drawing-contract.test.js` and `node tests/runtime-smoke.test.js`, then check the browser sequence:
 
 1. Guide dots appear before any strokes.
 2. Every outline stroke is painted gradually from its actual path, not revealed as a bitmap.
