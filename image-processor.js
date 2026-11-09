@@ -176,13 +176,19 @@
     const visibleCoverage=selected.reduce((sum,g)=>sum+g.area,0)/active;
     // A few giant blobs with no recoverable interior outlines are NOT
     // acceptable as "a design being drawn". Reject rather than fake a reveal.
-    if(strokes.length<2 || (!powderCount && contourCount<3) || visibleCoverage<.45)
-      throw new Error('Too few drawable outlines or colour regions recovered');
+    const totalOutlineLength=strokes.reduce((sum,stroke)=>{
+      for(let i=1;i<stroke.points.length;i++)sum+=dist(stroke.points[i-1],stroke.points[i]);
+      return sum;
+    },0);
+    if(strokes.length<3 || regions.length<2 || 
+       (powderCount<2 && contourCount<4) || totalOutlineLength<600 ||
+       visibleCoverage<.45)
+      throw new Error('Insufficient visible outlines: display as source preview, not a drawing');
     const result={
       id:'processed-image',mode:'image_auto_trace',verification:'automatic_unreviewed',
       tutorialCapable:false,dotType:'estimated_geometry_anchors',strokes,dots,fills:regions,
       stats:{resolution:n,visiblePixels:active,regionCount:regions.length,
-        tracedPaths:strokes.length,powderPaths:powderCount,contourPaths:contourCount,coverage:visibleCoverage,whitePixels:powder.whitePixels}
+        tracedPaths:strokes.length,powderPaths:powderCount,contourPaths:contourCount,coverage:visibleCoverage,whitePixels:powder.whitePixels,outlineLength:Math.round(totalOutlineLength)}
     };
     window.RangoliDrawingRules?.validateModel(result,{derived:true});
     return result;
