@@ -18,6 +18,7 @@ const els=new Map();function el(id){
   return els.get(id);
 }
 const gradient={addColorStop(){}};
+const drawnText=[];
 let activePixels=makePixels(true);
 function makePixels(visible){
   const n=900,data=new Uint8ClampedArray(n*n*4);
@@ -37,6 +38,7 @@ function ctx(){
   for(const k of ['clearRect','fillRect','strokeRect','drawImage','beginPath','closePath','arc','ellipse','moveTo',
     'lineTo','bezierCurveTo','quadraticCurveTo','fill','stroke','clip','save','restore','translate','rotate',
     'scale','fillText','strokeText','putImageData','setTransform'])c[k]=()=>{};
+  c.fillText=(str)=>drawnText.push(String(str));
   return c;
 }
 const listeners={},events=[];
@@ -78,6 +80,11 @@ win.RangoliStudioSelectVector('b-06');
 assert.equal(diag().semanticRegions?.footprints,2);
 assert.equal(diag().semanticRegions?.outerBeads,78);
 assert.equal(diag().semanticRegions?.label,1);
+drawnText.length=0;
+el('timelineRange').listeners.input({target:{value:'0'}});
+assert(!drawnText.includes('६. भाऊबीज'),'Final label must not appear in dot stage');
+el('timelineRange').listeners.input({target:{value:'1000'}});
+assert(drawnText.includes('६. भाऊबीज'),'Bhaubeej final stage must render Devanagari nameplate');
 function upload(){
   el('fileInput').listeners.change({target:{files:[{name:'upload.webp',size:1024,type:'image/webp'}],value:'file'}});
 }
