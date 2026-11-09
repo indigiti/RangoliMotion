@@ -20,14 +20,14 @@
   const edgeCtx = outline.getContext('2d');
   const backdropCtx = backdropCache.getContext('2d'), vectorOutlineCtx=vectorOutlineCache.getContext('2d');
   const state = {
-    duration: 6, baseDuration: 6, outlineSpeed: .75, realism: 1, pauseMs: 32, loop: true, theme: 'midnight', sparkle: true, removeBackground: true,
+    duration: 6, baseDuration: 6, outlineSpeed: .75, realism: 1, pauseMs: 32, loop: true, theme: 'midnight', sparkle: true, removeBackground: true, processedModel: null,
     playing: true, elapsed: 0, startedAt: performance.now(), sample: true, designId: 'lotus', geometricColors: false,
     name: 'Lotus mandala', detail: 'Sample artwork · Vector drawn', rect: {x:75,y:75,w:750,h:750},
     image: null, recording: false, recorder: null, recordStream: null, recordParts: [], recordStopping: false,
     seeking: false
   };
-  let stops = [0, .15, .53, .88, 1];
-  let timings = {dotMs: 900, outlineMs: 2280, fillMs: 2100, holdMs: 720, totalMs: 6000};
+  let stops = [0, .15, .50, .54, .88, 1];
+  let timings = window.RangoliDrawingRules.timeline({dotMs:900,outlineMs:2100,outlineCompleteMs:250,fillMs:2030,finalMs:720});
   let naturalSchedule = [];
   let fullscreenFallback = false;
   const palettes = {
@@ -200,10 +200,9 @@
     const baseMs = state.baseDuration * 1000;
     const dotMs = baseMs * .15;
     const outlineTravelMs = baseMs * .38 / state.outlineSpeed;
-    const fillMs = state.sample && window.RangoliDrawableDesigns?.[state.designId]
-      ? Math.max(baseMs*.35,libraryFills.length*52)
-      : baseMs * .35;
-    const holdMs = baseMs * .12;
+    const fillMs = libraryFills.length ? Math.max(baseMs*.35,libraryFills.length*45) : baseMs*.35;
+    const outlineCompleteMs = Math.max(260,Math.min(560,baseMs*.055));
+    const finalMs = baseMs*.12;
 
     const measures = strokes.map(s => {
       const prefix=[0];
@@ -229,14 +228,14 @@
     let clock=0;
     for(const m of measures){
       const travel=outlineTravelMs * m.weighted / totalWeight;
-      const dwell = !state.sample ? 0 : m.s.kind==='petal' ? state.pauseMs : m.s.kind==='ring' ? state.pauseMs*.65 : m.s.kind==='geometric' && m.s.len>35 ? state.pauseMs*.52 : ['flame','bowl','footprint','frame','toe','shape','bead'].includes(m.s.kind) ? state.pauseMs*.7 : 0;
+      const dwell = m.s.kind==='auto_trace' ? state.pauseMs*.3 : m.s.kind==='petal' ? state.pauseMs : m.s.kind==='ring' ? state.pauseMs*.65 : m.s.kind==='geometric' && m.s.len>35 ? state.pauseMs*.52 : ['flame','bowl','footprint','frame','toe','shape','bead'].includes(m.s.kind) ? state.pauseMs*.7 : 0;
       const start=clock, drawEnd=start+travel, pauseEnd=drawEnd+dwell;
       naturalSchedule.push({...m,start,drawEnd,pauseEnd,travel,dwell});
       clock=pauseEnd;
     }
-    timings={dotMs,outlineMs:clock,fillMs,holdMs,totalMs:dotMs+clock+fillMs+holdMs};
+    timings=window.RangoliDrawingRules.timeline({dotMs,outlineMs:clock,outlineCompleteMs,fillMs,finalMs});
     state.duration=timings.totalMs / 1000;
-    stops=[0,dotMs/timings.totalMs,(dotMs+clock)/timings.totalMs,(dotMs+clock+fillMs)/timings.totalMs,1];
+    stops=timings.stops;
     return prev;
   }
 
@@ -287,18 +286,13 @@
   }
 
   function preserveStageAndRebuild(){
-    const elapsed=state.elapsed,old=timings;
-    let segment,frac;
-    if(elapsed<old.dotMs){segment='dots';frac=elapsed/old.dotMs;}
-    else if(elapsed<old.dotMs+old.outlineMs){segment='lines';frac=(elapsed-old.dotMs)/old.outlineMs;}
-    else if(elapsed<old.dotMs+old.outlineMs+old.fillMs){segment='fill';frac=(elapsed-old.dotMs-old.outlineMs)/old.fillMs;}
-    else {segment='finish';frac=(elapsed-old.dotMs-old.outlineMs-old.fillMs)/old.holdMs;}
-    const wasPlaying=state.playing;
+    const old=timings,elapsed=clamp(state.elapsed,0,old.totalMs);
+    const stage=window.RangoliDrawingRules.stageAt(elapsed,old);
+    const index=window.RangoliDrawingRules.stages.indexOf(stage);
+    const start=old.endpoints[index],end=old.endpoints[index+1];
+    const ratio=clamp((elapsed-start)/Math.max(1,end-start)),wasPlaying=state.playing;
     rebuildNaturalTiming();
-    const mapped=segment==='dots'?frac*timings.dotMs
-      :segment==='lines'?timings.dotMs+frac*timings.outlineMs
-      :segment==='fill'?timings.dotMs+timings.outlineMs+frac*timings.fillMs
-      :timings.dotMs+timings.outlineMs+timings.fillMs+frac*timings.holdMs;
+    const mapped=timings.endpoints[index]+(timings.endpoints[index+1]-timings.endpoints[index])*ratio;
     setElapsed(mapped,wasPlaying);
     updateTimingLabels();
   }
