@@ -42,7 +42,7 @@
     </div>
     <div id="rmGalleryGrid" class="rm-lib-grid"></div>
     <div id="rmGalleryStatus" class="rm-lib-gallery-status" role="status" aria-live="polite">Choose a design to animate it above.</div>
-    <p class="rm-lib-disclaimer">Images are transparent, AI-cleaned artistic recreations derived from the supplied collages. Designs with cultural text may need proofreading. Six designs use authored vector paths with ordered strokes and color regions. The other 25 remain <strong>image previews</strong>. Authored drawings are stylized interpretations, not verified step-by-step how-to instructions. Verify artwork rights before public redistribution.</p>`;
+    <p class="rm-lib-disclaimer">Gallery assets are artistic recreations derived from the supplied collages. All playable images follow dots → outline → complete outline → colour regions → final detail. Six designs use authored paths; 25 images use <strong>automatically estimated contour tracing</strong> when selected. Estimated guides and stroke order are not verified tutorials. Confirm cultural text and artwork rights before distribution.</p>`;
   workspace.insertAdjacentElement('afterend', library);
 
   const grid = library.querySelector('#rmGalleryGrid');
