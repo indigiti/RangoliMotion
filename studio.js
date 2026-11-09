@@ -231,8 +231,11 @@
   function rebuildNaturalTiming() {
     const prev = timings;
     const baseMs = state.baseDuration * 1000;
-    const dotMs = baseMs * .15;
-    const outlineTravelMs = baseMs * .38 / state.outlineSpeed;
+    // Complexity-aware timing: hundreds of imported paths may NOT be squeezed
+    // into the same two-second outline window as a simple vector pattern.
+    const dotMs = Math.max(baseMs * .15,dots.length*(state.processedModel?21:11));
+    const minStrokeMs=state.processedModel?48:22;
+    const outlineTravelMs = Math.max(baseMs*.38,strokes.length*minStrokeMs)/state.outlineSpeed;
     const fillMs = libraryFills.length ? Math.max(baseMs*.35,libraryFills.length*45) : baseMs*.35;
     const outlineCompleteMs = Math.max(260,Math.min(560,baseMs*.055));
     const finalMs = baseMs*.12;
