@@ -171,7 +171,7 @@
       const mask=new Path2D();
       for(const rect of region.runs)mask.rect(rect[0],rect[1],rect[2]+.18,rect[3]+.18);
       libraryFills.push({path:mask,anchor:{x:region.anchor[0],y:region.anchor[1]},
-        radius:region.radius,color:region.color,imageSource:true});
+        radius:region.radius,color:region.color,powderFill:true});
     }
     state.processedModel=model;
     totalStrokes=strokes.reduce((n,v)=>n+v.len,0);
@@ -183,13 +183,22 @@
       const region=libraryFills[i],part=clamp(progress*n-i);
       if(!part)continue;
       target.save();target.clip(region.path);
-      if(region.imageSource){
-        // Reveal only this extracted colour component. Never wipe the entire bitmap.
-        target.beginPath();target.arc(region.anchor.x,region.anchor.y,region.radius*ease(part),0,TAU);target.clip();
-        target.globalAlpha=1;target.drawImage(source,0,0);
-      }else{
-        target.globalAlpha=.96;target.fillStyle=region.color;
-        target.beginPath();target.arc(region.anchor.x,region.anchor.y,region.radius*ease(part),0,TAU);target.fill();
+      // Colour is now SYNTHESIZED powder, never pixels copied from an uploaded
+      // reference photo. The region is tightly clipped to the traced mask.
+      target.globalAlpha=region.powderFill ? .88 : .96;
+      target.fillStyle=region.color;
+      target.beginPath();target.arc(region.anchor.x,region.anchor.y,region.radius*ease(part),0,TAU);target.fill();
+      if(region.powderFill && part>.05){
+        // Stable deterministic powder grains layered over the solid fill.
+        // All randomness derives from region index and point location.
+        const count=Math.min(26,8+Math.floor(region.radius/22));
+        target.save();target.globalAlpha=.13*part;target.fillStyle='#fff8de';
+        for(let k=0;k<count;k++){
+          const dx=(((k*73+i*29)%101)/101-.5)*region.radius*1.8,
+            dy=(((k*41+i*67)%97)/97-.5)*region.radius*1.8;
+          target.beginPath();target.arc(region.anchor.x+dx,region.anchor.y+dy,k%4===0?2.0:1.05,0,TAU);target.fill();
+        }
+        target.restore();
       }
       if(state.sparkle&&part>.3){
         target.globalAlpha=.14*part;target.fillStyle='#fff8dd';
@@ -714,9 +723,9 @@
         state.detail='Estimating drawing paths…';
         normalizeUpload();
         const model=processSourceImage();  // throws closed on low-quality traces
-        state.detail='Auto-traced · '+model.stats.tracedPaths+' paths / '+model.stats.regionCount+' colour regions';
+        state.detail='AUTO OUTLINE · '+model.stats.tracedPaths+' paths ('+model.stats.powderPaths+' powder) / '+model.stats.regionCount+' fills';
         updateDesignPicker();thumb();setElapsed(0,true);
-        $('stageDisclaimer').textContent='AUTO-TRACE · Unverified: the dots are inferred guide anchors (not a traditional dot grid). Outlines follow estimated image contours, then each detected colour region fills separately. For teaching accuracy, review and correct the paths.';
+        $('stageDisclaimer').textContent='AUTO-TRACE · Unverified: actual powder lines and colour contours are traced one stroke at a time, then each bounded region is redrawn using simulated powder (not the original photo). The guide dots and order are estimated; artwork details may differ and still need human review.';
         notify('Image processed: guide dots → outline strokes → completed outline → colour regions → final.');
         document.dispatchEvent(new CustomEvent('rangoli:processed',{detail:{
           status:'traced',mode:'image_auto_trace',stats:model.stats,filename:file.name
