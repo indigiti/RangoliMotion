@@ -1,4 +1,4 @@
-/* RangoliMotion v7: explicitly distinguish authored vectors from image previews. */
+/* v10: 7 authored vector templates, 24 preview-only reference images. */
 window.RangoliDesignLibraryData = [
   {
     "id": "a-01",
@@ -244,9 +244,11 @@ window.RangoliDesignLibraryData = [
     "collection": "Festival Rangoli",
     "src": "assets/designs/b-06-bhaubeej-footprints.webp",
     "filename": "b-06-bhaubeej-footprints.webp",
-    "mode": "image_preview",
+    "mode": "vector_draw",
     "origin": "AI-cleaned recreation",
-    "drawingType": "image reveal only"
+    "drawingType": "authored semantic shapes, stroke order and fill regions; unverified artist process",
+    "modelId": "b-06",
+    "tutorialCapable": false
   },
   {
     "id": "b-07",
