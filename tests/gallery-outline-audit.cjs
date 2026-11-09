@@ -4,7 +4,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),
   {execFileSync}=require('node:child_process');
 const ctx={window:{}};
-for(const name of ['drawing-contract.js','powder-trace.js','image-processor.js','gallery-data.js'])
+for(const name of ['drawing-contract.js','powder-trace.js','image-processor.js','drawable-designs.js','gallery-data.js'])
   vm.runInNewContext(fs.readFileSync(name,'utf8'),ctx,{filename:name});
 const items=ctx.window.RangoliDesignLibraryData, rules=ctx.window.RangoliDrawingRules,
   processor=ctx.window.RangoliImageProcessor;
@@ -36,17 +36,23 @@ for(const item of items){
     if(!fs.existsSync(item.src))throw Error('Asset missing');
     const bytes=execFileSync('python3',['-c',decoder,item.src],{maxBuffer:250000});
     if(bytes.length!==180*180*4)throw Error('Invalid WebP decoding length: '+bytes.length);
-    const model=processor.process({width:180,height:180,data:new Uint8ClampedArray(bytes)});
-    rules.validateModel(model,{derived:true});
-    writeOutlineSvg(entry,model);
+    const fromRaster=processor.process({width:180,height:180,data:new Uint8ClampedArray(bytes)});
+    rules.validateModel(fromRaster,{derived:true});
+    const authored=item.mode==='vector_draw'?ctx.window.RangoliDrawableDesigns[item.modelId]:null;
+    if(item.mode==='vector_draw'&&!authored)throw Error('Missing authored drawing model');
+    if(authored)rules.validateModel(authored);
+    const active=authored||fromRaster;
+    writeOutlineSvg(entry,active);
     Object.assign(entry,{
-      status:'traced',dots:model.dots.length,strokes:model.strokes.length,
-      powderPaths:model.stats.powderPaths,contourPaths:model.stats.contourPaths,
-      fillRegions:model.fills.length,coverage:Math.round(model.stats.coverage*1000)/1000,
+      status:authored?'authored_vector':'traced',dots:active.dots.length,strokes:active.strokes.length,
+      powderPaths:fromRaster.stats.powderPaths,
+      contourPaths:fromRaster.stats.contourPaths,
+      fillRegions:active.fills.length,
+      coverage:Math.round(fromRaster.stats.coverage*1000)/1000,
       sourcePixelsCopied:false,verifiedTutorial:false,
-      readyForDrawPreview:model.strokes.length>=3&&model.fills.length>=2
+      readyForDrawPreview:active.strokes.length>=3&&active.fills.length>=2
     });
-    if(!entry.readyForDrawPreview)faults.push(item.id+': insufficient outline or fill detail');
+    if(!entry.readyForDrawPreview)faults.push(item.id+': insufficient active outline or fill detail');
   }catch(error){
     entry.status='preview_only';entry.error=String(error.message||error);
     faults.push(item.id+': '+entry.error);
@@ -66,7 +72,7 @@ const galleryHtml=['<!doctype html><html lang="en"><meta charset="utf-8">'+
   'article{background:#1d2828;padding:12px;border-radius:14px}img{width:100%;aspect-ratio:1;object-fit:contain}small{color:#e8ba83}</style>'+
   '<h1>31 rangoli — outline-only audit</h1><p>Orange dots are estimated guide anchors; white paths are traced contours. These are unreviewed.</p><div class="grid">'];
 for(const item of audit)galleryHtml.push('<article><h3>'+svgEsc(item.id+' '+item.title)+
-  '</h3>'+(item.status==='traced'?'<img src="'+item.id+'.svg" alt="Outline preview">':
+  '</h3>'+(item.readyForDrawPreview?'<img src="'+item.id+'.svg" alt="Outline preview">':
   '<p>Needs attention: '+svgEsc(item.error||'Insufficient geometry')+'</p>')+
   '<small>Paths: '+(item.strokes??0)+' · powder: '+(item.powderPaths??0)+' · fills: '+(item.fillRegions??0)+'</small></article>');
 galleryHtml.push('</div></html>');
@@ -77,7 +83,7 @@ fs.writeFileSync('artifacts/outline-audit.json',JSON.stringify({
   generatedBy:'tests/gallery-outline-audit.cjs',galleryCount:audit.length,
   status:faults.length?'needs_review':'pass',failures:faults,designs:audit
 },null,2)+'\n');
-console.log('\nTOTAL',audit.length,'TRACED',audit.filter(x=>x.status==='traced').length,
-  'PREVIEW-ONLY',audit.filter(x=>x.status!=='traced').length);
+console.log('\nTOTAL',audit.length,'TRACED',audit.filter(x=>x.readyForDrawPreview).length,
+  'PREVIEW-ONLY',audit.filter(x=>!x.readyForDrawPreview).length);
 if(faults.length){console.error('\nOUTLINE AUDIT FAILED:\n'+faults.join('\n'));process.exitCode=1;}
 else console.log('PASS: 31/31 images have isolated outline paths and fill regions.');
