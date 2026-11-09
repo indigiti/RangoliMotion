@@ -75,7 +75,7 @@
     loops.sort((a,b)=>b.length-a.length);
     return loops.slice(0,5);
   }
-  function process(imageData,{resolution=180,maxRegions=180,maxStrokes=320}={}){
+  function process(imageData,{resolution=180,maxRegions=180,maxStrokes=340}={}){
     if(!imageData?.data||!Number.isInteger(imageData.width)||!Number.isInteger(imageData.height)
        ||imageData.width<30||imageData.height<30)throw new Error('Image must contain valid pixel data');
     const width=imageData.width,height=imageData.height,n=clamp(Math.floor(resolution),96,240)|0,scale=900/n;
@@ -117,7 +117,7 @@
     const regions=[],strokes=[],dots=[],spatial=[];
     // Mandatory separate line extraction: this catches interior light powder
     // outlines which are NOT preserved by tracing only colour-region borders.
-    const powder=window.RangoliPowderTrace?.trace(imageData,{resolution:n,maxPaths:Math.floor(maxStrokes*.58)})
+    const powder=window.RangoliPowderTrace?.trace(imageData,{resolution:n,maxPaths:Math.min(130,Math.floor(maxStrokes*.38))})
       || {strokes:[],dots:[],whitePixels:0};
     strokes.push(...powder.strokes);
     for(const d of powder.dots){if(dots.length<160){dots.push(d);spatial.push(d);}}
@@ -126,9 +126,22 @@
       if(dots.length>=160||spatial.some(p=>Math.hypot(p.x-x,p.y-y)<34))return;
       spatial.push({x,y});dots.push({x,y,size:3.8});
     };
+    // Reserve a contour for every accepted fill. Secondary details use only
+    // the remaining budget; an unoutlined fill is forbidden.
+    const secondaryContours=[];
+    const addContour=(loop)=>{
+      strokes.push({points:loop,width:Math.max(2.5,scale*.60),color:'#f0ead8',kind:'auto_trace'});
+      dot(loop[0][0],loop[0][1]);
+      const count=Math.min(7,Math.max(1,Math.floor(loop.length/22)));
+      for(let j=1;j<=count;j++){
+        const p=loop[Math.min(loop.length-1,Math.floor(j*loop.length/(count+1)))];
+        dot(p[0],p[1]);
+      }
+    };
     for(const region of selected){
       const loops=buildLoops(region.cells,n,scale);
       if(!loops.length)continue;
+      if(strokes.length>=maxStrokes)break;
       const main=loops[0];
       const runs=[];
       // Run-length rectangles are a mask for exactly one estimated colour region,
@@ -156,16 +169,12 @@
         anchor:[(region.cx+.5)*scale,(region.cy+.5)*scale],
         radius:Math.hypot(region.maxX-region.minX+2,region.maxY-region.minY+2)*scale,
         area:region.area});
-      for(const loop of loops){
-        if(strokes.length>=maxStrokes)break;
-        strokes.push({points:loop,width:Math.max(2.5,scale*.60),color:'#f0ead8',kind:'auto_trace'});
-        dot(loop[0][0],loop[0][1]);
-        const count=Math.min(7,Math.max(1,Math.floor(loop.length/22)));
-        for(let j=1;j<=count;j++){
-          const p=loop[Math.min(loop.length-1,Math.floor(j*loop.length/(count+1)))];
-          dot(p[0],p[1]);
-        }
-      }
+      addContour(main);
+      secondaryContours.push(...loops.slice(1));
+    }
+    for(const extra of secondaryContours){
+      if(strokes.length>=maxStrokes)break;
+      addContour(extra);
     }
     if(!strokes.length||!regions.length||!dots.length)
       throw new Error('Image contours cannot support the drawing sequence');
@@ -173,7 +182,7 @@
     // A human artist may use a different order; never label this a verified lesson.
     const powderCount=powder.strokes.length;
     const contourCount=strokes.length-powderCount;
-    const visibleCoverage=selected.reduce((sum,g)=>sum+g.area,0)/active;
+    const visibleCoverage=regions.reduce((sum,g)=>sum+g.area,0)/active;
     // A few giant blobs with no recoverable interior outlines are NOT
     // acceptable as "a design being drawn". Reject rather than fake a reveal.
     const totalOutlineLength=strokes.reduce((sum,stroke)=>{
