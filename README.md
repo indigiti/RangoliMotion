@@ -54,7 +54,7 @@ The gallery contains **31 individually selectable designs**. It separates two ca
 - **25 Auto-Trace Preview designs**: transparent WebP assets; on selection, they are processed into estimated guide anchors, ordered contour paths and bounded colour regions before playback. They are NOT verified tutorials.
 - In addition, the **Lotus Mandala** and **Geometric Lotus** original studio templates remain selectable outside the gallery.
 
-The `drawing-contract.js` enforces all five positive-duration stages; `image-processor.js` builds contour and region geometry for uploaded and gallery raster assets. The `drawable-designs.js` contains data for each of the six authored vector compositions: guide dots, ordered paths (with weights and semantic types), fill regions, fill colours, and anchors. The existing `studio.js` renderer builds actual Canvas strokes from those paths, slows around curves, pauses between strokes, then fills independent colour regions. New designs do **not** use the image-upload/wedge-reveal pipeline.
+The `drawing-contract.js` enforces all five positive-duration stages; `powder-trace.js` extracts bright rangoli-powder centerlines, while `image-processor.js` builds contour and region geometry for uploaded and gallery raster assets. Processed art now paints simulated powder colours, not source photographs. The `drawable-designs.js` contains data for each of the six authored vector compositions: guide dots, ordered paths (with weights and semantic types), fill regions, fill colours, and anchors. The existing `studio.js` renderer builds actual Canvas strokes from those paths, slows around curves, pauses between strokes, then fills independent colour regions. New designs do **not** use the image-upload/wedge-reveal pipeline.
 
 ### Accuracy and teaching disclosure
 
@@ -66,6 +66,7 @@ The six new models are **artistically authored geometric reconstructions** of th
 - `gallery-data.js`: each gallery item uses `mode: "vector_draw"` or `mode: "image_preview"`
 - `gallery.js`: filter mode, select vector renderer or automatically trace selected raster artwork, accessible status messages
 - `drawing-contract.js`: mandatory stage timings, stage classification, model validation
+- `powder-trace.js`: centreline tracing of light powder and decorative outlines
 - `image-processor.js`: browser-only raster-to-contour and colour-region extraction with fail-closed behavior
 - `tests/drawing-contract.test.js`: cross-input tests for mandatory stage sequencing and honesty gates
 - `gallery.css`: mode tabs and drawing capability labels
