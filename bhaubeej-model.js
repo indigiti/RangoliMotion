@@ -80,7 +80,10 @@
  const n=78;
  for(let i=0;i<n;i++){
   const a=-Math.PI/2+i*tau/n,x=450+320*Math.cos(a),y=400+320*Math.sin(a);
-  circle(x,y,7.5,'#f5f1e7','border-bead','#fff9e7');model.componentCounts.beads++;
+  circle(x,y,7.5,'#f5f1e7','border-bead','#fff9e7');
+  // Real border-dot locations are placed in stage 1, ahead of all outlines.
+  model.dots.push({x:round(x),y:round(y),size:3.4});
+  model.componentCounts.beads++;
  }
  const plate=[...cubic(P(250,780),P(291,752),P(605,752),P(650,780),24),
   ...cubic(P(650,780),P(668,815),P(655,847),P(616,853),16),
