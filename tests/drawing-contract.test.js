@@ -53,6 +53,12 @@ assert.equal(traced.mode,'image_auto_trace');
 assert.equal(traced.tutorialCapable,false);
 assert.equal(traced.verification,'automatic_unreviewed');
 assert.equal(rules.validateModel(traced,{derived:true}),true);
+assert(traced.fills.every(f=>Number.isInteger(f.outlineIndex)&&
+  traced.strokes[f.outlineIndex]?.kind==='auto_trace'),
+  'Every colour region must be attached to a real outline');
+const missingOutline={...traced,fills:[{...traced.fills[0],outlineIndex:-1},...traced.fills.slice(1)]};
+assert.throws(()=>rules.validateModel(missingOutline,{derived:true}),/contour stroke/);
+
 assert(traced.dots.length>0&&traced.strokes.length>0&&traced.fills.length>0);
 assert(traced.fills.every(f=>f.runs.length>0));
 assert(traced.stats.coverage>0.75);
