@@ -646,7 +646,16 @@
       else if(state.designId==='lotus'){vectorFills(temp,1);vectorOutlines(temp,1);}
       else {libraryFillFrame(temp,1);vectorOutlines(temp,1);}
       thumbCtx.drawImage(small,0,0,108,108);
-    }else thumbCtx.drawImage(source,0,0,108,108);
+    }else{
+      // Thumbnail of processed drawing, not the original image being uploaded.
+      thumbCtx.save();
+      const small=document.createElement('canvas');small.width=small.height=SIZE;
+      const temp=small.getContext('2d');
+      temp.fillStyle='#192529';temp.fillRect(0,0,SIZE,SIZE);
+      if(state.processedModel){libraryFillFrame(temp,1);vectorOutlines(temp,1);}
+      else temp.drawImage(source,0,0);
+      thumbCtx.drawImage(small,0,0,108,108);thumbCtx.restore();
+    }
     $('artworkName').textContent=state.name;
     $('artworkName').title=state.name;
     $('artworkInfo').textContent=state.detail;
