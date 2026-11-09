@@ -43,7 +43,7 @@ jobs:
       - name: Check JavaScript syntax and gallery manifest
         run: |
           set -euo pipefail
-          for f in drawing-contract.js powder-trace.js image-processor.js geometric-design.js studio.js drawable-designs.js gallery-data.js gallery.js tests/drawing-contract.test.js tests/runtime-smoke.test.js; do node --check "$f"; done
+          for f in drawing-contract.js powder-trace.js image-processor.js geometric-design.js studio.js drawable-designs.js gallery-data.js gallery.js tests/drawing-contract.test.js tests/runtime-smoke.test.js tests/gallery-outline-audit.cjs; do node --check "$f"; done
           node - <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const context={window:{}};
@@ -89,6 +89,21 @@ jobs:
         run: |
           node tests/drawing-contract.test.js
           node tests/runtime-smoke.test.js
+
+      - name: Install image decoder for exhaustive gallery audit
+        run: python3 -m pip install --user Pillow
+
+      - name: Audit all 31 gallery assets for genuine outline geometry
+        run: node tests/gallery-outline-audit.cjs
+
+      - name: Publish individual gallery outline diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rangoli-outline-audit
+          path: artifacts/outline-audit.json
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Package public website
         if: github.event_name != 'pull_request'
