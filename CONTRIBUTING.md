@@ -10,6 +10,6 @@ Before submitting a change, run `node tests/drawing-contract.test.js` and `node 
 4. Independent colour regions fill in sequence, clipped to their boundaries.
 5. Only then the artwork enters its final-detail/hold stage.
 
-Every image import path (file picker, drag/drop, gallery and reprocessing after background changes) must route through the same validated auto-tracer or fail without pretending to teach. Keep `image_auto_trace` unverified and clearly labelled. Only hand-reviewed geometry can be promoted to tutorial capability.
+User-upload, drag/drop and background reprocessing paths must use the same validated experimental auto-tracer or fail closed. Gallery images without an authored model remain reference-only unless a user explicitly opts into experimental tracing. See [Bhaubeej benchmark](docs/BHAUBEEJ_BENCHMARK.md) for semantic component requirements. Keep `image_auto_trace` unverified and clearly labelled. Only hand-reviewed geometry can be promoted to tutorial capability. Validate the expected component count and a screenshot of the completed **outline-only** stage, not just an algorithmic stroke count.
 
 Do not add dependencies, network image uploads, personal data collection or a database merely to process local imagery. Preserve DigiOps Cloudways artifact packaging as a static site. Verify rights in all supplied image assets.
