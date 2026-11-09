@@ -37,7 +37,7 @@
     sand: {a:'#e8d9bd',b:'#f6e7d0',floor:'#decbad',grid:'#785f48',dot:'#97633e',line:'#875a3d'}
   };
   const strokes = [], petals = [], dots = [], importedDots = [], geometricFills = [], libraryFills = [];
-  let toastTimer = null, lastStage = '';
+  let toastTimer = null, lastStage = '', importToken = 0;
   const clamp = (n, a=0, b=1) => Math.max(a, Math.min(b, n));
   const ease = (n) => (n = clamp(n), n*n*(3-2*n));
   const lerp = (a,b,t) => a+(b-a)*t;
@@ -140,6 +140,7 @@
   function buildLibraryVector(id){
     const data=window.RangoliDrawableDesigns?.[id];
     if(!data || data.mode!=='vector_draw')throw new Error('Missing vector template: '+id);
+    window.RangoliDrawingRules.validateModel(data);
     strokes.length=0;petals.length=0;dots.length=0;geometricFills.length=0;libraryFills.length=0;
     const xy=p=>({x:p[0],y:p[1]});
     for(const d of data.dots)dots.push({x:d.x,y:d.y,size:d.size||3.5});
@@ -653,7 +654,8 @@
   }
   function selectDesign(id){
     if(state.recording)return;
-    state.sample=true;state.image=null;state.designId=id;
+    ++importToken;
+    state.sample=true;state.image=null;state.processedModel=null;state.designId=id;
     state.theme=id==='geometric'?'berry':'midnight';
     $('themeSelect').value=state.theme;
     state.rect={x:75,y:75,w:750,h:750};
@@ -681,28 +683,55 @@
     selectDesign(id);return true;
   };
   function sample(){selectDesign('lotus');}
+  function processSourceImage(){
+    // This is the ONLY accepted path for user uploads and raster gallery previews.
+    const model=window.RangoliImageProcessor.process(srcCtx.getImageData(0,0,SIZE,SIZE));
+    buildProcessedImage(model);
+    return model;
+  }
   function loadFile(file){
     if(!file || state.recording)return;
     if(!/^(image\/png|image\/jpeg|image\/webp|image\/svg\+xml|image\/avif)$/.test(file.type)){
       notify('Please upload PNG, JPG, WebP, SVG or AVIF.');return;
     }
     if(file.size>15*1024*1024){notify('Choose an image smaller than 15 MB.');return;}
-    const url=URL.createObjectURL(file),image=new Image();
+    const token=++importToken,url=URL.createObjectURL(file),image=new Image();
     image.onload=()=>{
       URL.revokeObjectURL(url);
+      if(token!==importToken)return;
       try{
+        if(!image.naturalWidth||!image.naturalHeight)throw new Error('Empty image');
         rawCtx.clearRect(0,0,SIZE,SIZE);
         const scale=Math.min(770/image.naturalWidth,770/image.naturalHeight);
         const w=image.naturalWidth*scale,h=image.naturalHeight*scale,x=(SIZE-w)/2,y=(SIZE-h)/2;
         rawCtx.drawImage(image,x,y,w,h);
-        state.rect={x,y,w,h};state.sample=false;state.designId='upload';state.image=image;state.name=file.name;
-        state.detail=`${image.naturalWidth} × ${image.naturalHeight} · ${(file.size/1048576).toFixed(2)} MB`;
-        normalizeUpload();createImageEdges();generateImportedDots();rebuildNaturalTiming();updateTimingLabels();updateDesignPicker();thumb();setElapsed(0,true);
-        $('stageDisclaimer').textContent='Upload preview: dots are decorative, contours are pixel-derived, and colour sections are revealed clockwise. This is not an exact how-to guide.';
-        notify('Artwork loaded — dots, contours and colour animation are ready.');
-      }catch(err){console.error(err);notify('Unable to render this image. Try a smaller PNG or JPG.');}
+        state.rect={x,y,w,h};state.sample=false;state.designId='processed-image';
+        state.name=file.name;state.image=image;state.processedModel=null;
+        state.detail='Estimating drawing paths…';
+        normalizeUpload();
+        const model=processSourceImage();  // throws closed on low-quality traces
+        state.detail='Auto-traced · '+model.stats.tracedPaths+' paths / '+model.stats.regionCount+' colour regions';
+        updateDesignPicker();thumb();setElapsed(0,true);
+        $('stageDisclaimer').textContent='AUTO-TRACE · Unverified: the dots are inferred guide anchors (not a traditional dot grid). Outlines follow estimated image contours, then each detected colour region fills separately. For teaching accuracy, review and correct the paths.';
+        notify('Image processed: guide dots → outline strokes → completed outline → colour regions → final.');
+        document.dispatchEvent(new CustomEvent('rangoli:processed',{detail:{
+          status:'traced',mode:'image_auto_trace',stats:model.stats,filename:file.name
+        }}));
+      }catch(err){
+        console.error('Rangoli auto-tracing rejected',err);
+        // Fail closed: no disguised wedge reveal or false tutorial-capable status.
+        selectDesign('lotus');
+        notify('Cannot extract drawable regions from that image. Try a clearer, higher-contrast rangoli image.');
+        document.dispatchEvent(new CustomEvent('rangoli:processed',{detail:{
+          status:'failed',mode:'image_preview',reason:'No reliable trace extracted',filename:file.name
+        }}));
+      }
     };
-    image.onerror=()=>{URL.revokeObjectURL(url);notify('This image could not be opened. Try PNG or JPG.');};
+    image.onerror=()=>{
+      URL.revokeObjectURL(url);
+      if(token!==importToken)return;
+      notify('Image could not be decoded. Try a PNG or JPG.');
+    };
     image.src=url;
   }
   function download(blob,name){
@@ -767,15 +796,26 @@
     $('pauseRange').addEventListener('input',e=>{if(state.recording)return;state.pauseMs=Number(e.target.value);preserveStageAndRebuild();});
     $('themeSelect').addEventListener('change',e=>{
       state.theme=e.target.value;buildVisualCaches();
-      if(!state.sample)createImageEdges();
+      // Processed image masks stay aligned; the background theme does not retrace them.
       renderAt(state.elapsed);
     });
     $('loopToggle').addEventListener('change',e=>state.loop=e.target.checked);
     $('sparkleToggle').addEventListener('change',e=>{state.sparkle=e.target.checked;renderAt(state.elapsed);});
     $('removeBackgroundToggle').addEventListener('change',e=>{
       if(state.sample)return;
+      const old=state.removeBackground,prior=state.elapsed,playing=state.playing;
       state.removeBackground=e.target.checked;
-      normalizeUpload();createImageEdges();thumb();renderAt(state.elapsed);
+      try{
+        normalizeUpload();
+        const model=processSourceImage();
+        state.detail='Auto-traced · '+model.stats.tracedPaths+' paths / '+model.stats.regionCount+' colour regions';
+        thumb();setElapsed(Math.min(prior,timings.totalMs),playing);
+      }catch(err){
+        console.error('Background reprocessing failed',err);
+        state.removeBackground=old;e.target.checked=old;
+        normalizeUpload();processSourceImage();
+        notify('Background change could not produce valid outlines; previous setting restored.');
+      }
     });
     $('playPause').addEventListener('click',()=>{
       if(state.recording)return;
@@ -837,5 +877,5 @@
   }
   rebuildNaturalTiming();controls();buildVisualCaches();sample();requestAnimationFrame(tick);
   // Expose read-only test diagnostics, not app controls.
-  window.RangoliPreviewDiagnostics=()=>({design:state.designId,geometricColors:state.geometricColors,mode:state.sample?(window.RangoliDrawableDesigns?.[state.designId]?'vector_draw':'vector-sample'):'image_preview',fillCount:libraryFills.length,stage:stageFor(state.elapsed/(state.duration*1000)).id,duration:state.duration,baseDuration:state.baseDuration,outlineSpeed:state.outlineSpeed,realism:state.realism,pauseMs:state.pauseMs,outlineTimeMs:timings.outlineMs,strokeCount:strokes.length,fullScreen:document.fullscreenElement?.id==='previewColumn'||fullscreenFallback,playing:state.playing,loop:state.loop,recording:state.recording});
+  window.RangoliPreviewDiagnostics=()=>({design:state.designId,geometricColors:state.geometricColors,mode:state.sample?(window.RangoliDrawableDesigns?.[state.designId]?'vector_draw':'vector-sample'):(state.processedModel?.mode||'image_preview'),verification:state.processedModel?.verification||null,fillCount:libraryFills.length,stage:stageFor(state.elapsed/(state.duration*1000)).id,duration:state.duration,baseDuration:state.baseDuration,outlineSpeed:state.outlineSpeed,realism:state.realism,pauseMs:state.pauseMs,outlineTimeMs:timings.outlineMs,strokeCount:strokes.length,fullScreen:document.fullscreenElement?.id==='previewColumn'||fullscreenFallback,playing:state.playing,loop:state.loop,recording:state.recording});
 })();
