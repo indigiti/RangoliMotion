@@ -51,6 +51,18 @@
       if(!Array.isArray(f.points)||f.points.length<3||
           f.points.some(p=>!Array.isArray(p)||p.length!==2||p.some(v=>!Number.isFinite(v))))
         throw new Error('Invalid fill region geometry');
+    // Enforce design-grounded dots: decorative arbitrary grids are not allowed.
+    // Freehand designs may use anchor dots rather than a traditional pulli grid.
+    const sampled=[];
+    for(const line of model.strokes){
+      const step=Math.max(1,Math.floor(line.points.length/70));
+      for(let i=0;i<line.points.length;i+=step)sampled.push(line.points[i]);
+      sampled.push(line.points[line.points.length-1]);
+    }
+    const attached=model.dots.filter(d=>sampled.some(p=>
+      Math.abs(d.x-p[0])<=28&&Math.abs(d.y-p[1])<=28&&Math.hypot(d.x-p[0],d.y-p[1])<=28));
+    if(attached.length<Math.ceil(model.dots.length*.8))
+      throw new Error('Guide dots must correspond to the actual stroke geometry');
     if(derived && (model.tutorialCapable===true || model.verification==='verified'))
       throw new Error('Unreviewed image processing must never claim tutorial verification');
     return true;
