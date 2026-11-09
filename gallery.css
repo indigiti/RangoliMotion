@@ -39,3 +39,16 @@
 .rm-lib-mode-badge.is-vector{border-color:#b38e56;background:#412e1fe0;color:#ffe2a8}
 .rm-lib-mode-badge.is-preview{border-color:#4d6d74;background:#1c3038e0;color:#bfdce6}
 @media(max-width:720px){.rm-lib-modes{margin-left:0;width:100%}.rm-lib-mode{font-size:11px;padding:8px 10px}.rm-lib-mode-badge{left:10px;top:10px;font-size:9px}}
+
+/* v10: reference-only assets cannot masquerade as animated vector drawings. */
+.rm-lib-reference{display:flex;gap:18px;padding:17px;margin-top:14px;background:#1b2526;border:1px solid #3e5450;border-radius:14px;align-items:center}
+.rm-lib-reference[hidden]{display:none}
+.rm-lib-reference img{width:clamp(140px,25%,240px);height:auto;aspect-ratio:1;object-fit:contain;border-radius:10px;background:radial-gradient(circle,#394644,#182024)}
+.rm-lib-reference>div{flex:1;min-width:0}
+.rm-lib-reference strong{display:block;color:#f1ebda;font-size:15px;margin-bottom:7px}
+.rm-lib-reference p{font-size:13px;line-height:1.55;color:#c0c9c5;margin:0 0 13px}
+.rm-lib-reference button{border:1px solid #c5a06b;border-radius:10px;background:#3f3020;color:#ffe5b8;padding:10px 14px;font-weight:750;cursor:pointer}
+.rm-lib-reference button:hover{background:#58402b}
+.rm-lib-reference button:disabled{opacity:.5;cursor:wait}
+.rm-lib-reference small{display:block;color:#b6beb9;line-height:1.5;font-size:11px;margin-top:10px}
+@media(max-width:620px){.rm-lib-reference{flex-direction:column;align-items:stretch}.rm-lib-reference img{width:100%;max-width:280px;margin:auto}}
