@@ -75,7 +75,7 @@
     loops.sort((a,b)=>b.length-a.length);
     return loops.slice(0,5);
   }
-  function process(imageData,{resolution=180,maxRegions=155,maxStrokes=165}={}){
+  function process(imageData,{resolution=180,maxRegions=180,maxStrokes=320}={}){
     if(!imageData?.data||!Number.isInteger(imageData.width)||!Number.isInteger(imageData.height)
        ||imageData.width<30||imageData.height<30)throw new Error('Image must contain valid pixel data');
     const width=imageData.width,height=imageData.height,n=clamp(Math.floor(resolution),96,240)|0,scale=900/n;
@@ -113,8 +113,15 @@
     }
     if(!groups.length)throw new Error('No usable regions detected');
     groups.sort((a,b)=>b.area-a.area);
-    const selected=groups.slice(0,clamp(maxRegions,15,220));
+    const selected=groups.slice(0,clamp(maxRegions,15,240));
     const regions=[],strokes=[],dots=[],spatial=[];
+    // Mandatory separate line extraction: this catches interior light powder
+    // outlines which are NOT preserved by tracing only colour-region borders.
+    const powder=window.RangoliPowderTrace?.trace(imageData,{resolution:n,maxPaths:Math.floor(maxStrokes*.58)})
+      || {strokes:[],dots:[],whitePixels:0};
+    strokes.push(...powder.strokes);
+    for(const d of powder.dots){if(dots.length<160){dots.push(d);spatial.push(d);}}
+
     const dot=(x,y)=>{
       if(dots.length>=160||spatial.some(p=>Math.hypot(p.x-x,p.y-y)<34))return;
       spatial.push({x,y});dots.push({x,y,size:3.8});
@@ -143,13 +150,15 @@
           prev=xs[i];
         }
       }
-      regions.push({points:main,runs,color:'#ffffff',imageSource:true,
+      regions.push({points:main,runs,
+        color:'rgb('+region.color.join(',')+')',
+        powderFill:true,
         anchor:[(region.cx+.5)*scale,(region.cy+.5)*scale],
         radius:Math.hypot(region.maxX-region.minX+2,region.maxY-region.minY+2)*scale,
         area:region.area});
       for(const loop of loops){
         if(strokes.length>=maxStrokes)break;
-        strokes.push({points:loop,width:Math.max(2.2,scale*.52),color:'#f5e8d1',kind:'auto_trace'});
+        strokes.push({points:loop,width:Math.max(2.5,scale*.60),color:'#f0ead8',kind:'auto_trace'});
         dot(loop[0][0],loop[0][1]);
         const count=Math.min(7,Math.max(1,Math.floor(loop.length/22)));
         for(let j=1;j<=count;j++){
@@ -162,11 +171,18 @@
       throw new Error('Image contours cannot support the drawing sequence');
     // Drawing order: region contours first (largest to smallest), one stroke after another.
     // A human artist may use a different order; never label this a verified lesson.
+    const powderCount=powder.strokes.length;
+    const contourCount=strokes.length-powderCount;
+    const visibleCoverage=selected.reduce((sum,g)=>sum+g.area,0)/active;
+    // A few giant blobs with no recoverable interior outlines are NOT
+    // acceptable as "a design being drawn". Reject rather than fake a reveal.
+    if(strokes.length<2 || (!powderCount && contourCount<3) || visibleCoverage<.45)
+      throw new Error('Too few drawable outlines or colour regions recovered');
     const result={
       id:'processed-image',mode:'image_auto_trace',verification:'automatic_unreviewed',
       tutorialCapable:false,dotType:'estimated_geometry_anchors',strokes,dots,fills:regions,
       stats:{resolution:n,visiblePixels:active,regionCount:regions.length,
-        tracedPaths:strokes.length,coverage:selected.reduce((s,g)=>s+g.area,0)/active}
+        tracedPaths:strokes.length,powderPaths:powderCount,contourPaths:contourCount,coverage:visibleCoverage,whitePixels:powder.whitePixels}
     };
     window.RangoliDrawingRules?.validateModel(result,{derived:true});
     return result;
