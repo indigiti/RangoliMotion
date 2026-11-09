@@ -4,7 +4,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const read=(p)=>fs.readFileSync(p,'utf8');
 const sandbox={window:{}};
-for(const path of ['drawing-contract.js','image-processor.js','drawable-designs.js','gallery-data.js']){
+for(const path of ['drawing-contract.js','powder-trace.js','image-processor.js','drawable-designs.js','gallery-data.js']){
   vm.runInNewContext(read(path),sandbox,{filename:path});
 }
 const {RangoliDrawingRules:rules,RangoliImageProcessor:processor,
@@ -44,7 +44,9 @@ const image=(width,height,draw)=>{
 const sample=image(180,180,(x,y)=>{
   const a=(x-70)**2+(y-90)**2<47**2;
   const b=(x-115)**2+(y-92)**2<34**2;
-  return a?[234,53,110]:b?[41,155,96]:null;
+  const edgeA=Math.abs(Math.hypot(x-70,y-90)-46)<2.8;
+  const edgeB=Math.abs(Math.hypot(x-115,y-92)-33)<2.8;
+  return edgeA||edgeB?[250,243,227]:a?[234,53,110]:b?[41,155,96]:null;
 });
 const traced=processor.process(sample);
 assert.equal(traced.mode,'image_auto_trace');
@@ -54,6 +56,7 @@ assert.equal(rules.validateModel(traced,{derived:true}),true);
 assert(traced.dots.length>0&&traced.strokes.length>0&&traced.fills.length>0);
 assert(traced.fills.every(f=>f.runs.length>0));
 assert(traced.stats.coverage>0.75);
+assert(traced.stats.powderPaths>0,'Expected visible powder-line strokes');
 assert(traced.strokes.every(s=>s.points.length>1));
 assert(traced.dots.some(d=>Math.hypot(d.x-traced.strokes[0].points[0][0],
                                      d.y-traced.strokes[0].points[0][1])<5));
@@ -65,6 +68,7 @@ assert.throws(()=>processor.process({width:0,height:0,data:[]}),/valid pixel dat
 const studio=read('studio.js'),markup=read('index.html'),galleryCode=read('gallery.js');
 assert(!studio.includes('function wedgeImage'), 'Bitmap wedge renderer must never return');
 assert(!studio.includes('function uploadedFrame'), 'Old whole-image preview renderer must not return');
+assert(!studio.includes('target.drawImage(source,0,0)'), 'Processed image must not be copied onto Canvas');
 assert(studio.includes('RangoliImageProcessor.process'), 'Image processor not connected');
 assert(studio.includes('const model=processSourceImage()'), 'Manual uploads missing tracing');
 assert(studio.includes('normalizeUpload();processSourceImage()'), 'Background-change recovery missing tracing');
@@ -78,9 +82,10 @@ assert(galleryCode.includes("upload.dispatchEvent(new Event('change'"),
   'Gallery preview must route through the same upload tracer');
 assert(galleryCode.includes("rangoli:processed"), 'Gallery must report trace result');
 assert.equal((markup.match(/class="phase-item"/g)||[]).length,5,'UI must show all five stages');
-const scripts=[...markup.matchAll(/<script src="([^"]+)"/g)].map(m=>m[1]);
+const scripts=[...markup.matchAll(/<script src="([^"]+)"/g)].map(m=>m[1].split('?')[0]);
 assert(scripts.indexOf('drawing-contract.js')>=0);
-assert(scripts.indexOf('drawing-contract.js')<scripts.indexOf('image-processor.js'));
+assert(scripts.indexOf('drawing-contract.js')<scripts.indexOf('powder-trace.js'));
+assert(scripts.indexOf('powder-trace.js')<scripts.indexOf('image-processor.js'));
 assert(scripts.indexOf('image-processor.js')<scripts.indexOf('studio.js'));
 assert(fs.existsSync('AGENTS.md')&&fs.existsSync('docs/RANGOLI_DRAWING_RULES.md'));
 console.log('PASS: 5 mandatory stages, 6 authored models, 25 preview assets, raster tracer, fail-closed rules and all input routes.');
