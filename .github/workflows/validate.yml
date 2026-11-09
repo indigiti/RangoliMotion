@@ -90,8 +90,13 @@ jobs:
           node tests/drawing-contract.test.js
           node tests/runtime-smoke.test.js
 
-      - name: Install image decoder for exhaustive gallery audit
-        run: python3 -m pip install --user Pillow
+      - name: Prepare Python for exhaustive gallery audit
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Pillow for WebP asset inspection
+        run: python -m pip install Pillow
 
       - name: Audit all 31 gallery assets for genuine outline geometry
         run: node tests/gallery-outline-audit.cjs
