@@ -25,19 +25,24 @@ jobs:
       - name: Check app and gallery files
         run: |
           set -euo pipefail
-          for file in index.html styles.css geometric-design.js studio.js drawable-designs.js gallery.js gallery-data.js gallery.css; do
+          for file in index.html styles.css drawing-contract.js image-processor.js geometric-design.js studio.js drawable-designs.js gallery.js gallery-data.js gallery.css; do
             test -s "$file"
           done
           grep -q 'href="styles.css"' index.html
           grep -q 'src="geometric-design.js"' index.html
           grep -q 'src="studio.js"' index.html
           grep -q 'src="drawable-designs.js"' index.html
+          grep -q 'src="drawing-contract.js"' index.html
+          grep -q 'src="image-processor.js"' index.html
+          test -s docs/RANGOLI_DRAWING_RULES.md
+          test -s AGENTS.md
+          test -s CONTRIBUTING.md
           test "$(find assets/designs -type f -name '*.webp' | wc -l | tr -d ' ')" -eq 31
 
       - name: Check JavaScript syntax and gallery manifest
         run: |
           set -euo pipefail
-          for f in geometric-design.js studio.js drawable-designs.js gallery-data.js gallery.js; do node --check "$f"; done
+          for f in drawing-contract.js image-processor.js geometric-design.js studio.js drawable-designs.js gallery-data.js gallery.js tests/drawing-contract.test.js; do node --check "$f"; done
           node - <<'NODE'
           const fs=require('fs'),vm=require('vm');
           const context={window:{}};
@@ -79,12 +84,15 @@ jobs:
           console.log('Validated 6 geometry models, 25 image previews, and vector routing');
           NODE
 
+      - name: Enforce mandatory drawing stages and imported image tracing
+        run: node tests/drawing-contract.test.js
+
       - name: Package public website
         if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
           mkdir -p dist/assets
-          cp index.html styles.css geometric-design.js drawable-designs.js studio.js gallery.css gallery.js gallery-data.js dist/
+          cp index.html styles.css drawing-contract.js image-processor.js geometric-design.js drawable-designs.js studio.js gallery.css gallery.js gallery-data.js dist/
           cp -R assets/designs dist/assets/
           test -s dist/index.html
           test "$(find dist/assets/designs -type f -name '*.webp' | wc -l | tr -d ' ')" -eq 31
