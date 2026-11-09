@@ -31,6 +31,22 @@ function proof(model,id){
     '<rect width="900" height="900" fill="#142024"/>'+lines+points+'</svg>';
   fs.writeFileSync('artifacts/outline-previews/'+id+'.svg',svg);
 }
+function finalProof(model,id){
+  const poly=pts=>'M '+pts.map(p=>Number(p[0]).toFixed(1)+','+Number(p[1]).toFixed(1)).join(' L ')+' Z';
+  const paths=model.fills.map(region=>'<path d="'+poly(region.points)+
+    '" fill="'+escape(region.color)+'"/>').join('');
+  const strokes=model.strokes.map(line=>'<path d="'+line.points.map((p,i)=>
+    (i?'L':'M')+Number(p[0]).toFixed(1)+','+Number(p[1]).toFixed(1)).join(' ')+
+    '" fill="none" stroke="'+escape(line.color||'#fff3dd')+'" stroke-width="'+(line.width||3)+
+    '" stroke-linecap="round" stroke-linejoin="round"/>').join('');
+  const label=model.finalLabel;
+  const text=label?'<text x="'+label.x+'" y="'+label.y+'" font-family="sans-serif" font-weight="700"'+
+    ' font-size="'+label.size+'" text-anchor="middle" dominant-baseline="middle" fill="'+
+    escape(label.color)+'">'+escape(label.text)+'</text>':'';
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">'+
+    '<rect width="900" height="900" fill="#142024"/>'+paths+strokes+text+'</svg>';
+  fs.writeFileSync('artifacts/outline-previews/'+id+'-final.svg',svg);
+}
 fs.mkdirSync('artifacts/outline-previews',{recursive:true});
 if(items.length!==31)failures.push('Gallery must contain exactly 31 image records');
 for(const item of items){
@@ -55,6 +71,7 @@ for(const item of items){
           throw Error('Bhaubeej must use authored semantic paths, never raster fragments');
       }
       proof(model,item.id);
+      if(item.id==='b-06')finalProof(model,item.id);
       result.status='authored_draw';result.strokes=model.strokes.length;
       result.fillRegions=model.fills.length;
       result.semanticComponents=model.componentCounts||null;
@@ -87,7 +104,7 @@ const html='<!doctype html><html lang="en"><meta charset="utf-8">'+
   '<title>RangoliMotion geometry audit</title><style>body{font-family:system-ui;background:#111c1f;color:#f2eee6;padding:24px}'+
   'main{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}'+
   'article{border:1px solid #455;padding:12px;border-radius:12px}img{width:100%;background:#142024}</style>'+
-  '<h1>31-image audit — 7 semantic vectors, 24 unreviewed references</h1><main>'+cards.join('')+'</main></html>';
+  '<h1>31-image audit — 7 semantic vectors, 24 unreviewed references</h1><p>The b-06-final.svg file is a manually reviewable complete-vector proof; no image fidelity is automatically asserted.</p><main>'+cards.join('')+'</main></html>';
 fs.writeFileSync('artifacts/outline-previews/index.html',html);
 fs.writeFileSync('artifacts/outline-audit.json',JSON.stringify({
   generatedBy:'tests/gallery-outline-audit.cjs',galleryCount:diagnostics.length,
