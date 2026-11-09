@@ -3,7 +3,7 @@
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const read=p=>fs.readFileSync(p,'utf8');
-const win={};for(const f of ['drawing-contract.js','powder-trace.js','image-processor.js','drawable-designs.js'])
+const win={};for(const f of ['drawing-contract.js','powder-trace.js','image-processor.js','geometric-design.js','drawable-designs.js'])
   vm.runInNewContext(read(f),{window:win},{filename:f});
 const els=new Map();function el(id){
   if(!els.has(id)){
@@ -62,9 +62,18 @@ vm.runInNewContext(read('studio.js'),{window:win,document:doc,performance:perf,
   URL:fakeURL,setTimeout:()=>1,clearTimeout(){},console:report},{filename:'studio.js'});
 const diag=()=>win.RangoliPreviewDiagnostics();
 assert.equal(diag().mode,'vector-sample');
-assert.equal(win.RangoliStudioSelectVector('a-06'),true);
-assert.equal(diag().mode,'vector_draw');
-assert(diag().fillCount>0&&diag().strokeCount>0);
+assert(diag().strokeCount>0,'Built-in Lotus must have actual strokes');
+el('selectGeometric').listeners.click();
+assert.equal(diag().design,'geometric');
+assert(diag().strokeCount>0,'Built-in Geometric must draw actual lines');
+el('selectLotus').listeners.click();
+const authored=['a-01','a-06','a-07','a-09','a-14','a-16'];
+for(const id of authored){
+  assert.equal(win.RangoliStudioSelectVector(id),true,id+' must load');
+  assert.equal(diag().mode,'vector_draw');
+  assert(diag().fillCount>0&&diag().strokeCount>0,id+' missing vector geometry');
+}
+assert(diag().strokeCount>0);
 function upload(){
   el('fileInput').listeners.change({target:{files:[{name:'upload.webp',size:1024,type:'image/webp'}],value:'file'}});
 }
