@@ -17,7 +17,7 @@ The pipeline runs from `drawing-contract.js` and cannot be replaced with a whole
 
 ## How automatic tracing works
 
-`gallery.js` retrieves a single design image and dispatches the studio's upload event. `studio.js` uses `image-processor.js` to downsample pixel data, group adjacent colours, extract contour loops and geometry-based guide anchors, and build individual region masks. The stage engine renders timed **Canvas paths**, then reveals only the image pixels falling inside each region mask.
+`gallery.js` retrieves a single design image and dispatches the studio's upload event. `studio.js` uses `image-processor.js` to downsample pixel data, group adjacent colours, extract contour loops and geometry-based guide anchors, and build individual region masks. The stage engine renders timed **Canvas paths**, then draws a solid, grain-textured colour approximation inside each region mask. The original photograph is **not** painted onto the animation Canvas.
 
 This is a local browser approximation. It cannot know the artist's actual dot grid, preferred stroke order, hand movement or fill process from a raster image alone. The displayed guide dots are estimated, not verified historical drawing directions. Do not label it a tutorial.
 
