@@ -1,89 +1,97 @@
-/* Audit all 31 gallery assets. Python Pillow decodes WebP only in CI.
-   The deployed browser app does not depend on Python. */
+/* Exhaustive asset audit.
+ * All 31 source WebPs must exist and decode. Authored Draw Mode geometry is
+ * release-blocking. Non-authored image traces are diagnostic-only until
+ * semantic human review; path counts alone do NOT imply accurate rangoli.
+ */
 'use strict';
-const fs=require('node:fs'),vm=require('node:vm'),
-  {execFileSync}=require('node:child_process');
+const fs=require('node:fs'),vm=require('node:vm'),{execFileSync}=require('node:child_process');
 const ctx={window:{}};
-for(const name of ['drawing-contract.js','powder-trace.js','image-processor.js','drawable-designs.js','gallery-data.js'])
-  vm.runInNewContext(fs.readFileSync(name,'utf8'),ctx,{filename:name});
-const items=ctx.window.RangoliDesignLibraryData, rules=ctx.window.RangoliDrawingRules,
-  processor=ctx.window.RangoliImageProcessor;
-const decoder=[
-  'import sys',
+for(const path of ['drawing-contract.js','powder-trace.js','image-processor.js',
+  'drawable-designs.js','bhaubeej-model.js','gallery-data.js'])
+  vm.runInNewContext(fs.readFileSync(path,'utf8'),ctx,{filename:path});
+const items=ctx.window.RangoliDesignLibraryData;
+const rules=ctx.window.RangoliDrawingRules,processor=ctx.window.RangoliImageProcessor;
+const models=ctx.window.RangoliDrawableDesigns;
+const decode=[
   'from PIL import Image',
-  'with Image.open(sys.argv[1]) as img:',
-  '    frame=img.convert("RGBA").resize((180,180),Image.Resampling.LANCZOS)',
-  '    sys.stdout.buffer.write(frame.tobytes())'
+  'import sys',
+  'with Image.open(sys.argv[1]) as image:',
+  '  rgba=image.convert("RGBA").resize((180,180),Image.Resampling.LANCZOS)',
+  '  sys.stdout.buffer.write(rgba.tobytes())'
 ].join('\n');
-const audit=[],faults=[];
-const svgEsc=value=>String(value).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-const svgPath=pts=>pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
-function writeOutlineSvg(entry,model){
-  const strokes=model.strokes.map(s=>'<path d="'+svgPath(s.points)+'" fill="none" stroke="'+svgEsc(s.color||'#fff6e8')+
-    '" stroke-width="'+Math.max(1,s.width||2.6).toFixed(1)+'" stroke-linecap="round" stroke-linejoin="round"/>').join('');
-  const dots=model.dots.map(d=>'<circle cx="'+d.x.toFixed(1)+'" cy="'+d.y.toFixed(1)+
-    '" r="3.5" fill="#ffc477" opacity=".85"/>').join('');
-  const markup='<svg xmlns="http://www.w3.org/2000/svg" width="450" height="450" viewBox="0 0 900 900">'+
-    '<rect width="900" height="900" fill="#142024"/><g>'+strokes+'</g><g>'+dots+'</g>'+
-    '<text x="24" y="865" font-size="25" fill="#f8d5aa">'+svgEsc(entry.id+' · contour audit')+'</text></svg>';
-  fs.mkdirSync('artifacts/outline-previews',{recursive:true});
-  fs.writeFileSync('artifacts/outline-previews/'+entry.id+'.svg',markup);
+const failures=[],diagnostics=[],escape=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function proof(model,id){
+  const lines=model.strokes.map(stroke=>'<path d="'+stroke.points.map((p,i)=>(i?'L':'M')+
+    Number(p[0]).toFixed(1)+','+Number(p[1]).toFixed(1)).join(' ')+
+    '" fill="none" stroke="'+escape(stroke.color||'#fff5dc')+'" stroke-width="'+
+    (stroke.width||2.8)+'" stroke-linecap="round" stroke-linejoin="round"/>').join('');
+  const points=model.dots.map(d=>'<circle cx="'+Number(d.x).toFixed(1)+'" cy="'+Number(d.y).toFixed(1)+
+    '" r="3.1" fill="#d8a86d" opacity=".65"/>').join('');
+  const svg='<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 900">'+
+    '<rect width="900" height="900" fill="#142024"/>'+lines+points+'</svg>';
+  fs.writeFileSync('artifacts/outline-previews/'+id+'.svg',svg);
 }
-
-for(const item of items){
-  const entry={id:item.id,title:item.title,mode:item.mode,asset:item.src};
-  try{
-    if(!fs.existsSync(item.src))throw Error('Asset missing');
-    const bytes=execFileSync('python3',['-c',decoder,item.src],{maxBuffer:250000});
-    if(bytes.length!==180*180*4)throw Error('Invalid WebP decoding length: '+bytes.length);
-    const fromRaster=processor.process({width:180,height:180,data:new Uint8ClampedArray(bytes)});
-    rules.validateModel(fromRaster,{derived:true});
-    const authored=item.mode==='vector_draw'?ctx.window.RangoliDrawableDesigns[item.modelId]:null;
-    if(item.mode==='vector_draw'&&!authored)throw Error('Missing authored drawing model');
-    if(authored)rules.validateModel(authored);
-    const active=authored||fromRaster;
-    writeOutlineSvg(entry,active);
-    Object.assign(entry,{
-      status:authored?'authored_vector':'traced',dots:active.dots.length,strokes:active.strokes.length,
-      powderPaths:fromRaster.stats.powderPaths,
-      contourPaths:fromRaster.stats.contourPaths,
-      fillRegions:active.fills.length,
-      coverage:Math.round(fromRaster.stats.coverage*1000)/1000,
-      sourcePixelsCopied:false,verifiedTutorial:false,
-      readyForDrawPreview:active.strokes.length>=3&&active.fills.length>=2
-    });
-    if(!entry.readyForDrawPreview)faults.push(item.id+': insufficient active outline or fill detail');
-  }catch(error){
-    entry.status='preview_only';entry.error=String(error.message||error);
-    faults.push(item.id+': '+entry.error);
-  }
-  audit.push(entry);
-  console.log(item.id.padEnd(5),entry.status.padEnd(12),
-    ('paths '+String(entry.strokes??0).padStart(3)).padEnd(10),
-    ('powder '+String(entry.powderPaths??0).padStart(3)).padEnd(11),
-    ('fills '+String(entry.fillRegions??0).padStart(3)).padEnd(10),
-    'coverage',entry.coverage??'-');
-}
-if(audit.length!==31)faults.push('Not all 31 designs were audited');
 fs.mkdirSync('artifacts/outline-previews',{recursive:true});
-const galleryHtml=['<!doctype html><html lang="en"><meta charset="utf-8">'+
-  '<title>RangoliMotion 31-design outline QA</title><style>body{font-family:system-ui;background:#101719;color:#eee;padding:28px}'+
-  '.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:18px}'+
-  'article{background:#1d2828;padding:12px;border-radius:14px}img{width:100%;aspect-ratio:1;object-fit:contain}small{color:#e8ba83}</style>'+
-  '<h1>31 rangoli — outline-only audit</h1><p>Orange dots are estimated guide anchors; white paths are traced contours. These are unreviewed.</p><div class="grid">'];
-for(const item of audit)galleryHtml.push('<article><h3>'+svgEsc(item.id+' '+item.title)+
-  '</h3>'+(item.readyForDrawPreview?'<img src="'+item.id+'.svg" alt="Outline preview">':
-  '<p>Needs attention: '+svgEsc(item.error||'Insufficient geometry')+'</p>')+
-  '<small>Paths: '+(item.strokes??0)+' · powder: '+(item.powderPaths??0)+' · fills: '+(item.fillRegions??0)+'</small></article>');
-galleryHtml.push('</div></html>');
-fs.writeFileSync('artifacts/outline-previews/index.html',galleryHtml.join('
-'));
-fs.mkdirSync('artifacts',{recursive:true});
+if(items.length!==31)failures.push('Gallery must contain exactly 31 image records');
+for(const item of items){
+  const result={id:item.id,title:item.title,mode:item.mode,asset:item.src,
+    tutorialVerified:false,qualityClaim:'No exact image fidelity assumed'};
+  try{
+    if(!fs.existsSync(item.src))throw Error('Image missing: '+item.src);
+    const buf=execFileSync('python3',['-c',decode,item.src],{maxBuffer:180*180*4+4096});
+    if(buf.length!==180*180*4)throw Error('WebP decode size mismatch');
+    result.assetDecoded=true;
+    if(item.mode==='vector_draw'){
+      const model=models[item.modelId||item.id];
+      if(!model)throw Error('Authored model missing');
+      rules.validateModel(model);
+      if(model.strokes.length<8||model.fills.length<5)throw Error('Too little vector geometry');
+      if(model.id==='b-06'){
+        const counts=model.componentCounts||{};
+        if(counts.footprints!==2||counts.toes!==10||counts.beads<70||
+          counts.flowers<5||counts.leaves<8||counts.diyas!==1||model.finalLabel?.text!=='६. भाऊबीज')
+          throw Error('Bhaubeej reference components missing');
+        if(model.strokes.some(x=>x.kind==='auto_trace'||x.kind==='powder_line'))
+          throw Error('Bhaubeej must use authored semantic paths, never raster fragments');
+      }
+      proof(model,item.id);
+      result.status='authored_draw';result.strokes=model.strokes.length;
+      result.fillRegions=model.fills.length;
+      result.semanticComponents=model.componentCounts||null;
+    }else{
+      // Decode/trace for diagnostics only. Do not promote unreviewed assets.
+      result.status='reference_only';
+      try{
+        const model=processor.process({width:180,height:180,data:new Uint8ClampedArray(buf)});
+        result.experimentalPaths=model.strokes.length;
+        result.experimentalRegionCount=model.fills.length;
+        result.qualityClaim='Unreviewed auto-trace; reference-only in gallery';
+        proof(model,item.id);
+      }catch(e){result.traceWarning=String(e.message||e);}
+    }
+  }catch(e){
+    result.status='error';result.error=String(e.message||e);
+    failures.push(item.id+': '+result.error);
+  }
+  diagnostics.push(result);
+  console.log(item.id,result.status,'paths',result.strokes||result.experimentalPaths||0);
+}
+const approved=diagnostics.filter(x=>x.status==='authored_draw').length;
+const reference=diagnostics.filter(x=>x.status==='reference_only').length;
+if(approved!==7||reference!==24)failures.push('Expected 7 authored Draw Mode and 24 reference-only entries');
+const cards=diagnostics.map(d=>'<article><h3>'+escape(d.id+' '+d.title)+'</h3>'+
+  (fs.existsSync('artifacts/outline-previews/'+d.id+'.svg')?
+    '<img src="'+d.id+'.svg" alt="Geometry diagnostic">':'<p>No trace preview</p>')+
+  '<p>'+escape(d.status)+' · '+(d.strokes||d.experimentalPaths||0)+' paths</p></article>');
+const html='<!doctype html><html lang="en"><meta charset="utf-8">'+
+  '<title>RangoliMotion geometry audit</title><style>body{font-family:system-ui;background:#111c1f;color:#f2eee6;padding:24px}'+
+  'main{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px}'+
+  'article{border:1px solid #455;padding:12px;border-radius:12px}img{width:100%;background:#142024}</style>'+
+  '<h1>31-image audit — 7 semantic vectors, 24 unreviewed references</h1><main>'+cards.join('')+'</main></html>';
+fs.writeFileSync('artifacts/outline-previews/index.html',html);
 fs.writeFileSync('artifacts/outline-audit.json',JSON.stringify({
-  generatedBy:'tests/gallery-outline-audit.cjs',galleryCount:audit.length,
-  status:faults.length?'needs_review':'pass',failures:faults,designs:audit
+  generatedBy:'tests/gallery-outline-audit.cjs',galleryCount:diagnostics.length,
+  authoredCount:approved,referenceCount:reference,failures,designs:diagnostics
 },null,2)+'\n');
-console.log('\nTOTAL',audit.length,'TRACED',audit.filter(x=>x.readyForDrawPreview).length,
-  'PREVIEW-ONLY',audit.filter(x=>!x.readyForDrawPreview).length);
-if(faults.length){console.error('\nOUTLINE AUDIT FAILED:\n'+faults.join('\n'));process.exitCode=1;}
-else console.log('PASS: 31/31 images have isolated outline paths and fill regions.');
+console.log('AUDIT',diagnostics.length,'authored',approved,'reference-only',reference,'failures',failures.length);
+if(failures.length){console.error(failures.join('\n'));process.exitCode=1;}
