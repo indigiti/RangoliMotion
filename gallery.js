@@ -20,20 +20,20 @@
   const library = document.createElement('section');
   library.id = 'rangoliDesignLibrary';
   library.className = 'rm-library';
-  library.setAttribute('aria-label','Browse 31 rangoli designs in vector drawing or image preview mode');
+  library.setAttribute('aria-label','Browse 31 rangoli designs: authored Draw Mode and reference-only previews');
   library.innerHTML = `
     <div class="rm-lib-heading">
       <div><span class="rm-lib-kicker">CURATED MOTION COLLECTION / 31 DESIGNS</span>
         <h2>Find your next rangoli.</h2>
-        <p>Choose a design. Authored templates draw known paths; image previews are automatically traced into estimated guide dots, contours and colour regions. Both use the five mandatory stages.</p>
+        <p>Choose an authored Draw Mode design for stroke-by-stroke animation. Other images remain reference previews until manually reconstructed; optional automatic tracing is experimental.</p>
       </div><span class="rm-lib-count">31 designs</span>
     </div>
     <div class="rm-lib-tools">
       <input id="rmLibrarySearch" class="rm-lib-search" aria-label="Search rangoli designs" type="search" placeholder="Search diya, lotus, peacock…" autocomplete="off">
       <div class="rm-lib-modes" role="group" aria-label="Filter by animation capability">
           <button type="button" class="rm-lib-mode is-active" data-mode-filter="all" aria-pressed="true">All 31</button>
-          <button type="button" class="rm-lib-mode" data-mode-filter="vector_draw" aria-pressed="false">Draw Mode · 6</button>
-          <button type="button" class="rm-lib-mode" data-mode-filter="image_preview" aria-pressed="false">Auto-Trace · 25</button>
+          <button type="button" class="rm-lib-mode" data-mode-filter="vector_draw" aria-pressed="false">Draw Mode · 7</button>
+          <button type="button" class="rm-lib-mode" data-mode-filter="image_preview" aria-pressed="false">References · 24</button>
         </div>
       </div>
       <div class="rm-lib-tools rm-lib-category-tools"><div class="rm-lib-filters" role="group" aria-label="Filter rangoli categories">
@@ -42,11 +42,13 @@
     </div>
     <div id="rmGalleryGrid" class="rm-lib-grid"></div>
     <div id="rmGalleryStatus" class="rm-lib-gallery-status" role="status" aria-live="polite">Choose a design to animate it above.</div>
-    <p class="rm-lib-disclaimer">Gallery assets are artistic recreations derived from the supplied collages. All playable images follow dots → outline → complete outline → colour regions → final detail. Six designs use authored paths; 25 images use <strong>automatically estimated contour tracing</strong> when selected. Estimated guides and stroke order are not verified tutorials. Confirm cultural text and artwork rights before distribution.</p>`;
+    <div id="rmGalleryReference" class="rm-lib-reference" hidden></div>
+    <p class="rm-lib-disclaimer">Gallery assets are artistic recreations derived from the supplied collages. All playable images follow dots → outline → complete outline → colour regions → final detail. Seven designs use authored paths; 24 images are <strong>reference-only</strong> unless you explicitly try experimental tracing. Estimated guides and stroke order are not verified tutorials. Confirm cultural text and artwork rights before distribution.</p>`;
   workspace.insertAdjacentElement('afterend', library);
 
   const grid = library.querySelector('#rmGalleryGrid');
   const status = library.querySelector('#rmGalleryStatus');
+  const reference = library.querySelector('#rmGalleryReference');
   const render = () => {
     const filtered = items.filter(item => (modeFilter==='all'||item.mode===modeFilter) && (filter==='All'||item.category.toLowerCase()===filter.toLowerCase()) &&
       (!search || `${item.title} ${item.collection} ${item.category}`.toLowerCase().includes(search)));
@@ -54,46 +56,50 @@
     grid.innerHTML = filtered.length ? filtered.map(item=>`
       <button type="button" class="rm-lib-card ${item.id===selected?'is-selected':''}" data-rangoli="${esc(item.id)}" aria-pressed="${item.id===selected}" title="${item.mode==='vector_draw'?'Draw':'Preview'} ${esc(item.title)}">
         <span class="rm-lib-card-image"><img src="${esc(item.src)}" loading="lazy" decoding="async" alt="${esc(item.title)} rangoli with transparent background"></span>
-        <span class="rm-lib-mode-badge ${item.mode==='vector_draw'?'is-vector':'is-preview'}">${item.mode==='vector_draw'?'✎ Draw Mode':'◌ Auto-Trace Preview'}</span>
+        <span class="rm-lib-mode-badge ${item.mode==='vector_draw'?'is-vector':'is-preview'}">${item.mode==='vector_draw'?'✎ Draw Mode':'◌ Reference image'}</span>
         <span class="rm-lib-card-title">${esc(item.title)}</span>
         <span class="rm-lib-card-sub"><span>${esc(item.collection==='Festival Rangoli'?'Festival':'Decorative')}</span><span>${esc(item.category)}</span></span>
       </button>`).join('') : '<p class="rm-lib-empty">No designs match this filter. Try another category or search term.</p>';
   };
 
+  async function tryAutoTrace(item,token) {
+    const button=reference.querySelector('#rmTryAutoTrace');
+    if(button)button.disabled=true;
+    status.textContent='Experimental trace processing '+item.title+'…';
+    try {
+      const response=await fetch(item.src,{cache:'force-cache'});
+      if(!response.ok)throw new Error('Asset HTTP '+response.status);
+      const blob=await response.blob();
+      if(!blob.size||!blob.type.startsWith('image/'))throw new Error('Invalid image');
+      if(token!==selectionToken)return;
+      const file=new File([blob],item.title+'.webp',{type:'image/webp'});
+      const dt=new DataTransfer();dt.items.add(file);
+      upload.files=dt.files;
+      upload.dispatchEvent(new Event('change',{bubbles:true}));
+      status.textContent='Automatic outlines are unreviewed. If the drawing is fragmented, use the reference image and request manual tracing.';
+      document.getElementById('previewColumn')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }catch(err){
+      console.error('Experimental trace failed',err);
+      status.textContent='Unable to extract reliable outlines. Reference preview remains available.';
+    }finally{if(button?.isConnected)button.disabled=false;}
+  }
   async function select(item) {
-    const token = ++selectionToken;
+    const token=++selectionToken;
     if(item.mode==='vector_draw'){
+      reference.hidden=true;reference.innerHTML='';
       const ok=window.RangoliStudioSelectVector?.(item.modelId||item.id);
-      if(!ok){status.textContent='Drawing template unavailable. Check drawable-designs.js in the deployed release.';return;}
+      if(!ok){status.textContent='Drawing template unavailable. Confirm the v10 model is in your DigiOps release.';return;}
       selected=item.id;render();
-      status.textContent=item.title+' selected: dots, ordered real vector strokes, and one-by-one color regions. This is a stylized interpretation.';
+      status.textContent=item.title+' selected: ordered authored contours and sequential colour regions. Reference reconstruction, not a certified tutorial.';
       document.getElementById('previewColumn')?.scrollIntoView({behavior:'smooth',block:'start'});
       return;
     }
-    const button = library.querySelector(`[data-rangoli="${item.id}"]`);
-    if (button) button.disabled=true;
-    status.textContent = `Loading ${item.title}…`;
-    try {
-      const response = await fetch(item.src,{cache:'force-cache'});
-      if (!response.ok) throw new Error('Asset HTTP '+response.status);
-      const blob = await response.blob();
-      if (!blob.size || !blob.type.startsWith('image/')) throw new Error('Invalid image file');
-      if (token!==selectionToken) return;
-      const file = new File([blob],`${item.title}.webp`,{type:'image/webp'});
-      const dt = new DataTransfer();
-      dt.items.add(file);
-      upload.files = dt.files;
-      upload.dispatchEvent(new Event('change',{bubbles:true}));
-      selected = item.id;
-      render();
-      status.textContent = `${item.title}: processing its image into estimated strokes and colour regions. This is not a verified tutorial.`;
-      document.getElementById('previewColumn')?.scrollIntoView({behavior:'smooth',block:'start'});
-    } catch (err) {
-      console.error('Rangoli gallery image failed to load',err);
-      status.textContent = `Couldn't open ${item.title}. Confirm the gallery files were included in the DigiOps release.`;
-    } finally {
-      if (button && button.isConnected) button.disabled=false;
-    }
+    // Never show an unreviewed bitmap as if it has a successful Draw Mode.
+    selected=item.id;render();
+    reference.hidden=false;
+    reference.innerHTML='<img loading="lazy" src="'+esc(item.src)+'" alt="'+esc(item.title)+' reference rangoli"><div><strong>'+esc(item.title)+'</strong><p>This is the source reference, not a drawing animation. It needs reviewed dot/stroke/fill geometry to become Draw Mode.</p><button type="button" id="rmTryAutoTrace">Try experimental automatic tracing</button><small>Experimental tracing may produce broken shapes and is never a verified tutorial.</small></div>';
+    reference.querySelector('#rmTryAutoTrace')?.addEventListener('click',()=>tryAutoTrace(item,token));
+    status.textContent=item.title+' is reference-only; no fabricated drawing paths will play automatically.';
   }
 
   grid.addEventListener('click',event=>{
@@ -131,8 +137,7 @@
     if(detail.status==='traced'){
       status.textContent=`Auto-traced image: ${detail.stats.tracedPaths} contours and ${detail.stats.regionCount} colour regions. All five stages are mandatory. Paths are estimated, not verified lessons.`;
     }else if(detail.status==='failed'){
-      status.textContent='Could not derive reliable drawing paths. This image remains preview-only; choose a clearer image for dot-to-draw animation.';
-      selected=null;render();
+      status.textContent='Automatic tracing could not derive reliable drawing paths. The reference remains available; request a manually reconstructed template.';
     }
   });
   const browse=document.createElement('a');
