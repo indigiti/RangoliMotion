@@ -1,11 +1,11 @@
-# RangoliMotion — Design Library (v8)
+# RangoliMotion — Design Library (v10)
 
 31 separately addressable transparent WebP images (16 decorative + 15 festive), plus two built-in templates.
 
 ## Modes
 
-- 6 `vector_draw` gallery entries: author-defined dots, ordered strokes and fill polygons (`drawable-designs.js`).
-- 25 `image_preview` gallery entries: source assets only. When clicked, they pass through the **same automatic image tracing engine** used for manual uploads. A successful trace is played as `image_auto_trace`, not promoted to `vector_draw`. An unsuccessful trace stays a non-playable image preview with a clear error. The gallery retains its count as 25 unreviewed image assets.
+- 7 `vector_draw` gallery entries: six existing authored templates plus `b-06` Bhaubeej Footprints (`bhaubeej-model.js`), built from recognizable semantic shapes. See [benchmark criteria](BHAUBEEJ_BENCHMARK.md).
+- 24 `image_preview` gallery entries: source assets remain reference-only when selected. An explicit **Try experimental automatic tracing** action can invoke the upload-processing engine, but the result is never considered tutorial-ready.
 - Original Lotus Mandala and Geometric Lotus remain selected from the studio's design picker.
 
 ## Mandatory pipeline
@@ -17,7 +17,7 @@ The pipeline runs from `drawing-contract.js` and cannot be replaced with a whole
 
 ## How automatic tracing works
 
-`gallery.js` retrieves a single design image and dispatches the studio's upload event. `studio.js` uses `image-processor.js` to downsample pixel data, group adjacent colours, extract contour loops and geometry-based guide anchors, and build individual region masks. The stage engine renders timed **Canvas paths**, then draws a solid, grain-textured colour approximation inside each region mask. The original photograph is **not** painted onto the animation Canvas.
+When a user explicitly requests experimental tracing, `gallery.js` retrieves that design image and dispatches the studio's upload event. `studio.js` uses `image-processor.js` to downsample pixel data, group adjacent colours, extract contour loops and geometry-based guide anchors, and build individual region masks. The stage engine renders timed **Canvas paths**, then draws a solid, grain-textured colour approximation inside each region mask. The original photograph is **not** painted onto the animation Canvas.
 
 This is a local browser approximation. It cannot know the artist's actual dot grid, preferred stroke order, hand movement or fill process from a raster image alone. The displayed guide dots are estimated, not verified historical drawing directions. Do not label it a tutorial.
 
@@ -29,4 +29,4 @@ The 31 artworks are AI-cleaned recreations derived from supplied collage images,
 
 Run `node tests/drawing-contract.test.js`, check the browser phases with actual uploads, and require a successful GitHub Actions workflow. The `digiops-release` artifact must contain `drawing-contract.js`, `image-processor.js`, `studio.js`, `drawable-designs.js`, `gallery*.js/css`, and all 31 WebP files under `assets/designs/`.
 
-The gallery uses `fetch()`, so serve over HTTP(S) rather than `file://`.
+The gallery's opt-in experimental tracing uses `fetch()`, so serve over HTTP(S) rather than `file://`.
