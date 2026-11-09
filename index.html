@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0b1014">
   <meta name="description" content="Rangoli Motion Studio Preview Mode — animated dots, outlines and colours on a real HTML Canvas, entirely in your browser.">
-  <title>Rangoli Motion Studio — Preview Mode v6</title>
+  <title>Rangoli Motion Studio — Dot-to-Draw Pipeline v8</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="gallery.css">
   
@@ -15,7 +15,7 @@
 <div class="app-shell">
   <header class="site-header">
     <div class="brand"><span class="brand-icon" aria-hidden="true"><span class="brand-flower">✺</span></span><span><strong>rangoli<span class="gold">.</span>motion</strong><small>THE CREATIVE CANVAS LAB</small></span></div>
-    <div class="header-right"><span class="version-pill">STUDIO 07 / 6 DRAW · 25 PREVIEW</span><span class="separator"></span><span class="local-indicator"><span></span>Local · Private</span></div>
+    <div class="header-right"><span class="version-pill">STUDIO 08 / DOT → LINE → COLOUR</span><span class="separator"></span><span class="local-indicator"><span></span>Local · Private</span></div>
   </header>
 
   <main>
@@ -42,11 +42,12 @@
         <div class="sidebar-section"><div class="section-title"><span class="section-number">02</span><h2>Animation flow</h2></div>
           <div class="phase-list" aria-label="Animation stages">
             <div class="phase-item" data-stage="dots"><span class="phase-icon dots-icon">∷</span><span><strong>Dot placement</strong><small>The first marks on the ground</small></span><span class="phase-tick">01</span></div>
-            <div class="phase-item" data-stage="lines"><span class="phase-icon">⌁</span><span><strong>Outline drawing</strong><small>Shapes emerge gracefully</small></span><span class="phase-tick">02</span></div>
-            <div class="phase-item" data-stage="color"><span class="phase-icon color-icon">✿</span><span><strong>Colour bloom</strong><small>Petals fill one after another</small></span><span class="phase-tick">03</span></div>
-            <div class="phase-item" data-stage="final"><span class="phase-icon">✦</span><span><strong>Final flourish</strong><small>A moment to admire</small></span><span class="phase-tick">04</span></div>
+            <div class="phase-item" data-stage="lines"><span class="phase-icon">⌁</span><span><strong>Outline drawing</strong><small>Stroke by stroke, following guide points</small></span><span class="phase-tick">02</span></div>
+            <div class="phase-item" data-stage="outline_complete"><span class="phase-icon">✓</span><span><strong>Outline complete</strong><small>All lines finished before colour begins</small></span><span class="phase-tick">03</span></div>
+            <div class="phase-item" data-stage="color"><span class="phase-icon color-icon">✿</span><span><strong>Colour filling</strong><small>One extracted region at a time</small></span><span class="phase-tick">04</span></div>
+            <div class="phase-item" data-stage="final"><span class="phase-icon">✦</span><span><strong>Final flourish</strong><small>Details and completed artwork</small></span><span class="phase-tick">05</span></div>
           </div>
-          <p class="stage-disclaimer" id="stageDisclaimer">The sample uses designed vector paths. Uploaded images use an artistic approximation, not reconstructed drawing instructions.</p>
+          <p class="stage-disclaimer" id="stageDisclaimer">All images are processed in mandatory drawing order. Automatic image tracing estimates guide points and contours; it is not a verified rangoli tutorial.</p>
         </div>
         <div class="sidebar-section settings-section"><div class="section-title"><span class="section-number">03</span><h2>Fine-tune</h2></div>
           <div class="field"><div class="field-top"><label for="durationRange">Base animation length</label><output id="durationLabel" for="durationRange">6.0 sec</output></div><input id="durationRange" type="range" min="4" max="15" value="6" step="0.5"><div class="range-markers"><span>4s · Quick</span><span>15s · Relaxed</span></div><p class="field-help">Natural stroke pauses add to the final running time.</p></div>
@@ -75,6 +76,8 @@
   <footer class="site-footer"><span>ROOTED IN TRADITION. REIMAGINED IN MOTION.</span><span>RANGOLI MOTION STUDIO © 2026 <b>·</b> PREVIEW 6.0</span></footer>
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="drawing-contract.js"></script>
+<script src="image-processor.js"></script>
 <script src="geometric-design.js"></script>
 <script src="drawable-designs.js"></script>
 <script src="studio.js"></script>
