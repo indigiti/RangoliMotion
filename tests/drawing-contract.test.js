@@ -4,7 +4,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
 const read=(p)=>fs.readFileSync(p,'utf8');
 const sandbox={window:{}};
-for(const path of ['drawing-contract.js','powder-trace.js','image-processor.js','drawable-designs.js','gallery-data.js']){
+for(const path of ['drawing-contract.js','powder-trace.js','image-processor.js','drawable-designs.js','bhaubeej-model.js','gallery-data.js']){
   vm.runInNewContext(read(path),sandbox,{filename:path});
 }
 const {RangoliDrawingRules:rules,RangoliImageProcessor:processor,
@@ -25,14 +25,29 @@ assert.throws(()=>rules.timeline({dotMs:500,outlineMs:500,outlineCompleteMs:0,fi
 assert.throws(()=>rules.assertTimeline({endpoints:[0,1,2,2,4,5],totalMs:5}));
 
 assert.equal(gallery.length,31);
-assert.equal(gallery.filter(x=>x.mode==='vector_draw').length,6);
-assert.equal(gallery.filter(x=>x.mode==='image_preview').length,25);
+assert.equal(gallery.filter(x=>x.mode==='vector_draw').length,7);
+assert.equal(gallery.filter(x=>x.mode==='image_preview').length,24);
 for(const item of gallery.filter(x=>x.mode==='vector_draw')){
   const model=models[item.modelId];
   assert(model,item.id+' missing vector template');
   assert.equal(rules.validateModel(model),true);
   assert(model.dots.length&&model.strokes.length&&model.fills.length);
 }
+// Reference-specific semantic QA: b-06 must be two real footprints, not a
+// collection of angular contours generated from pixel boundaries.
+const bhaubeej=models['b-06'];
+assert(bhaubeej&&bhaubeej.mode==='vector_draw');
+assert.equal(bhaubeej.verification,'reference_reconstruction_unreviewed');
+assert.equal(bhaubeej.tutorialCapable,false);
+assert.deepEqual(Array.from(Object.entries(bhaubeej.semanticRegions).map(([k,v])=>[k,v])),
+  [['footprints',2],['toes',10],['diya',1],['outerBeads',78],['label',1]]);
+assert.equal(bhaubeej.finalLabel.text,'६. भाऊबीज');
+assert.equal(bhaubeej.strokes.filter(x=>x.kind==='footprint').length,2);
+assert.equal(bhaubeej.fills.filter(x=>x.kind==='toe').length,10);
+assert.equal(bhaubeej.fills.filter(x=>x.kind==='border-bead').length,78);
+assert(!bhaubeej.strokes.some(x=>['auto_trace','powder_line'].includes(x.kind)));
+assert(bhaubeej.strokes.every(s=>s.points.every(p=>p.every(v=>Number.isFinite(v)&&v>=0&&v<=900))));
+
 const image=(width,height,draw)=>{
   const data=new Uint8ClampedArray(width*height*4);
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
@@ -94,4 +109,4 @@ assert(scripts.indexOf('drawing-contract.js')<scripts.indexOf('powder-trace.js')
 assert(scripts.indexOf('powder-trace.js')<scripts.indexOf('image-processor.js'));
 assert(scripts.indexOf('image-processor.js')<scripts.indexOf('studio.js'));
 assert(fs.existsSync('AGENTS.md')&&fs.existsSync('docs/RANGOLI_DRAWING_RULES.md'));
-console.log('PASS: 5 mandatory stages, 6 authored models, 25 preview assets, raster tracer, fail-closed rules and all input routes.');
+console.log('PASS: 5 mandatory stages, 7 authored models (including b-06), 24 reference images, raster tracer and fail-closed rules.');
