@@ -468,13 +468,13 @@
   function vectorFrame(target,p,time) {
     const d=ease(rel(p,stops[0],stops[1]));
     const o=ease(rel(p,stops[1],stops[2]));
-    const f=rel(p,stops[2],stops[3]);
+    const f=rel(p,stops[3],stops[4]);
     // Initial fine guide points persist, but fade once the design is coloured.
-    const dotsOpacity=p<stops[2]?1:lerp(1,.2,rel(p,stops[2],stops[3]));
+    const dotsOpacity=p<stops[2]?1:lerp(1,.2,rel(p,stops[3],stops[4]));
     target.save();target.globalAlpha=dotsOpacity;
     drawDots(target,dots,d);
     target.restore();
-    if(p>=stops[2])vectorFills(target,f);
+    if(p>=stops[3])vectorFills(target,f);
     const cursor=p>=stops[1] && p<stops[2]?naturalOutlines(target,time-timings.dotMs):null;
     if(p>=stops[2]){
       // Crisp contours remain visible over powder fills.
@@ -489,11 +489,11 @@
       target.restore();
     }
     if(p>=stops[1]&&p<stops[2])drawPowderHead(target,cursor,time);
-    if(p>=stops[2]&&p<stops[3]){
+    if(p>=stops[3]&&p<stops[4]){
       const idx=Math.min(petals.length-1,Math.floor(f*petals.length));
       brushGlow(target,petals[idx].center,.85);
     }
-    drawFlourish(target,rel(p,stops[2],stops[3]),time);
+    drawFlourish(target,rel(p,stops[4],stops[5]),time);
   }
 
   function geometricFillsFrame(target,progress){
@@ -516,7 +516,7 @@
   }
   function geometricFrame(target,p,time){
     const d=ease(rel(p,stops[0],stops[1]));
-    const f=rel(p,stops[2],stops[3]);
+    const f=rel(p,stops[3],stops[4]);
     target.save();target.globalAlpha=p<stops[2]?1:lerp(1,.12,f);
     drawDots(target,dots,d);target.restore();
     if(p>=stops[2]){
@@ -526,14 +526,14 @@
       const cursor=naturalOutlines(target,time-timings.dotMs);
       drawPowderHead(target,cursor,time);
     }
-    if(p>=stops[2]&&p<stops[3]){
+    if(p>=stops[3]&&p<stops[4]){
       const a=.14+.22*Math.sin(f*TAU*2);
       target.save();target.globalAlpha=Math.max(0,a);
       target.globalCompositeOperation='screen';
       target.drawImage(vectorOutlineCache,0,0);
       target.restore();
     }
-    drawFlourish(target,rel(p,stops[2],stops[3]),time);
+    drawFlourish(target,rel(p,stops[4],stops[5]),time);
   }
 
   function normalizeUpload() {
@@ -555,63 +555,17 @@
     }
     srcCtx.putImageData(img,0,0);
   }
-  function createImageEdges() {
-    edgeCtx.clearRect(0,0,SIZE,SIZE);
-    const data=srcCtx.getImageData(0,0,SIZE,SIZE).data;
-    const out=edgeCtx.createImageData(SIZE,SIZE),pix=out.data;
-    const lum=(pos)=>.2126*data[pos]+.7152*data[pos+1]+.0722*data[pos+2];
-    const dark=state.theme==='sand';
-    for(let y=2;y<SIZE-2;y++)for(let x=2;x<SIZE-2;x++){
-      const k=(y*SIZE+x)*4;
-      const gx=Math.abs(lum(k+4)-lum(k-4));
-      const gy=Math.abs(lum(k+SIZE*4)-lum(k-SIZE*4));
-      const a=data[k+3], adx=Math.abs(a-data[k+4+3]),ady=Math.abs(a-data[k+SIZE*4+3]);
-      const threshold=(gx+gy)*.92+Math.max(adx,ady)*.7;
-      const intensity=clamp((threshold-22)/91);
-      if(intensity<.12)continue;
-      pix[k]=dark?113:245;pix[k+1]=dark?74:219;pix[k+2]=dark?43:181;pix[k+3]=Math.min(218,Math.round(intensity*215));
-    }
-    edgeCtx.putImageData(out,0,0);
-  }
-  function generateImportedDots() {
-    importedDots.length=0;
-    const r=Math.min(state.rect.w,state.rect.h)*.45;
-    for(const [count,scale] of [[8,.24],[12,.49],[20,.76],[28,1]]) {
-      for(let i=0;i<count;i++)importedDots.push({...rad(r*scale,i*TAU/count-Math.PI/2),size:3.8});
-    }
-  }
-  function wedgeImage(target,img,progress) {
-    const count=20;
-    for(let i=0;i<count;i++){
-      const part=clamp(progress*count-i);
-      if(part<=0)break;
-      const from=-Math.PI/2+i*TAU/count-.003;
-      const to=from+part*TAU/count+.005;
-      target.save();target.beginPath();target.moveTo(C,C);target.arc(C,C,650,from,to);target.closePath();target.clip();target.drawImage(img,0,0);target.restore();
-    }
-  }
-  function uploadedFrame(target,p,time) {
-    const d=ease(rel(p,stops[0],stops[1]));
-    const o=ease(rel(p,stops[1],stops[2]));
-    const f=ease(rel(p,stops[2],stops[3]));
-    target.save();target.globalAlpha=p<stops[2]?1:lerp(1,.14,f);
-    drawDots(target,importedDots,d);target.restore();
-    if(p>=stops[1])wedgeImage(target,outline,o);
-    if(p>=stops[2])wedgeImage(target,source,f);
-    if(p>=stops[3])target.drawImage(source,0,0);
-    const show=rel(p,stops[2],stops[3]);
-    drawFlourish(target,show,time);
-    if(state.sparkle && p>stops[1] && p<stops[3]){
-      const speed=p<stops[2]?o:f;
-      const point=rad(200,-Math.PI/2+speed*TAU);
-      brushGlow(target,point,.65);
-    }
-  }
+  /* Legacy wedge-image reveal removed: all processed images must have geometry.
+     Refuse auto-drawing when contours/regions cannot be extracted. */
+
   function stageFor(p) {
-    if(p<stops[1])return {id:'dots',label:'Placing dots',badge:'01 / PLACING DOTS',number:0};
-    if(p<stops[2])return {id:'lines',label:'Drawing the outline',badge:'02 / DRAWING OUTLINES',number:1};
-    if(p<stops[3]){const plain=state.sample&&state.designId==='geometric'&&!state.geometricColors;return plain?{id:'color',label:'Polishing white linework',badge:'03 / LINEWORK POLISH',number:2}:{id:'color',label:'Filling colour regions',badge:'03 / COLOUR FILL',number:2};}
-    return {id:'final',label:'Final rangoli',badge:'04 / FINAL FLOURISH',number:3};
+    // One contract, shared by authored designs and automatically traced images.
+    const id=window.RangoliDrawingRules.stageAt(p*timings.totalMs,timings);
+    if(id==='dots')return {id,label:'Placing guide dots',badge:'01 / PLACE DOTS',number:0};
+    if(id==='outline')return {id,label:'Drawing outline, stroke by stroke',badge:'02 / DRAW OUTLINE',number:1};
+    if(id==='outline_complete')return {id,label:'Outline complete · before colour',badge:'03 / OUTLINE COMPLETE',number:2};
+    if(id==='fill')return {id,label:'Filling each colour region',badge:'04 / FILL COLOURS',number:3};
+    return {id,label:'Completed rangoli',badge:'05 / FINAL DETAIL',number:4};
   }
   function renderAt(elapsedMs,updateUI=true) {
     const p=clamp(elapsedMs/timings.totalMs);
@@ -619,7 +573,7 @@
     if(state.sample && state.designId==='geometric')geometricFrame(ctx,p,elapsedMs);
     else if(state.sample && state.designId!=='lotus')libraryVectorFrame(ctx,p,elapsedMs);
     else if(state.sample)vectorFrame(ctx,p,elapsedMs);
-    else uploadedFrame(ctx,p,elapsedMs);
+    else if(state.processedModel)libraryVectorFrame(ctx,p,elapsedMs);
     if(updateUI){
       const stage=stageFor(p);
       $('timelineRange').value=Math.round(p*1000);
