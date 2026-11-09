@@ -207,6 +207,19 @@
       target.restore();
     }
   }
+  function drawAuthoredFinalLabel(target,p) {
+    const label=window.RangoliDrawableDesigns?.[state.designId]?.finalLabel;
+    if(!label || p<stops[4])return;
+    const alpha=ease(rel(p,stops[4],stops[5]));
+    target.save();
+    target.globalAlpha=alpha;
+    target.font='700 '+(label.size||40)+'px "Noto Sans Devanagari","Mangal",sans-serif';
+    target.textAlign='center';
+    target.textBaseline='middle';
+    target.fillStyle=label.color||'#fff3e6';
+    target.fillText(label.text,label.x,label.y,label.maxWidth||600);
+    target.restore();
+  }
   function libraryVectorFrame(target,p,time){
     const d=ease(rel(p,stops[0],stops[1])),f=rel(p,stops[3],stops[4]);
     target.save();target.globalAlpha=p<stops[2]?1:lerp(1,.12,f);
@@ -221,6 +234,7 @@
     }else if(p>=stops[1]){
       drawPowderHead(target,naturalOutlines(target,time-timings.dotMs),time);
     }
+    drawAuthoredFinalLabel(target,p);
     drawFlourish(target,rel(p,stops[4],stops[5]),time);
   }
   let totalStrokes=strokes.reduce((s,v)=>s+v.len,0);
@@ -647,7 +661,7 @@
       temp.fillStyle='#192529';temp.fillRect(0,0,SIZE,SIZE);
       if(state.designId==='geometric'){geometricFillsFrame(temp,1);vectorOutlines(temp,1);}
       else if(state.designId==='lotus'){vectorFills(temp,1);vectorOutlines(temp,1);}
-      else {libraryFillFrame(temp,1);vectorOutlines(temp,1);}
+      else {libraryFillFrame(temp,1);vectorOutlines(temp,1);drawAuthoredFinalLabel(temp,1);}
       thumbCtx.drawImage(small,0,0,108,108);
     }else{
       // Thumbnail of processed drawing, not the original image being uploaded.
@@ -688,7 +702,7 @@
     if(window.RangoliDrawableDesigns?.[id]){
       buildLibraryVector(id);
       const template=window.RangoliDrawableDesigns[id];
-      state.name=template.title;state.detail='Authored vector drawing · '+template.category;
+      state.name=template.title;state.detail=(template.verification==='reference_reconstruction_unreviewed'?'Semantic reconstruction · ':'Authored vector drawing · ')+template.category;
       $('stageDisclaimer').textContent='Authored dot, ordered outline and region-fill animation. Stylized interpretation of the reference, not an exact tracing or verified practical lesson.';
     }else if(id==='geometric'){
       buildGeometric();
@@ -902,5 +916,5 @@
   }
   rebuildNaturalTiming();controls();buildVisualCaches();sample();requestAnimationFrame(tick);
   // Expose read-only test diagnostics, not app controls.
-  window.RangoliPreviewDiagnostics=()=>({design:state.designId,geometricColors:state.geometricColors,mode:state.sample?(window.RangoliDrawableDesigns?.[state.designId]?'vector_draw':'vector-sample'):(state.processedModel?.mode||'image_preview'),verification:state.processedModel?.verification||null,fillCount:libraryFills.length,stage:stageFor(state.elapsed/(state.duration*1000)).id,duration:state.duration,baseDuration:state.baseDuration,outlineSpeed:state.outlineSpeed,realism:state.realism,pauseMs:state.pauseMs,outlineTimeMs:timings.outlineMs,strokeCount:strokes.length,fullScreen:document.fullscreenElement?.id==='previewColumn'||fullscreenFallback,playing:state.playing,loop:state.loop,recording:state.recording});
+  window.RangoliPreviewDiagnostics=()=>({design:state.designId,geometricColors:state.geometricColors,mode:state.sample?(window.RangoliDrawableDesigns?.[state.designId]?'vector_draw':'vector-sample'):(state.processedModel?.mode||'image_preview'),verification:state.processedModel?.verification||null,fillCount:libraryFills.length,semanticRegions:window.RangoliDrawableDesigns?.[state.designId]?.semanticRegions||null,stage:stageFor(state.elapsed/(state.duration*1000)).id,duration:state.duration,baseDuration:state.baseDuration,outlineSpeed:state.outlineSpeed,realism:state.realism,pauseMs:state.pauseMs,outlineTimeMs:timings.outlineMs,strokeCount:strokes.length,fullScreen:document.fullscreenElement?.id==='previewColumn'||fullscreenFallback,playing:state.playing,loop:state.loop,recording:state.recording});
 })();
