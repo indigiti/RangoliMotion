@@ -63,6 +63,22 @@
       Math.abs(d.x-p[0])<=28&&Math.abs(d.y-p[1])<=28&&Math.hypot(d.x-p[0],d.y-p[1])<=28));
     if(attached.length<Math.ceil(model.dots.length*.8))
       throw new Error('Guide dots must correspond to the actual stroke geometry');
+    if(derived){
+      // A colour-filled area without a previously authored contour is invalid.
+      // The mandatory outline-complete stage must include every future fill.
+      const used=new Set();
+      for(const region of model.fills){
+        const idx=region.outlineIndex;
+        if(!Number.isInteger(idx)||idx<0||idx>=model.strokes.length||
+           model.strokes[idx].kind!=='auto_trace'||used.has(idx))
+          throw new Error('Every image fill region must have its own contour stroke');
+        used.add(idx);
+        const outline=model.strokes[idx].points;
+        if(outline.length<3 || !region.points.length ||
+           Math.hypot(outline[0][0]-region.points[0][0],outline[0][1]-region.points[0][1])>8)
+          throw new Error('Fill contour does not match its region geometry');
+      }
+    }
     if(derived && (model.tutorialCapable===true || model.verification==='verified'))
       throw new Error('Unreviewed image processing must never claim tutorial verification');
     return true;
